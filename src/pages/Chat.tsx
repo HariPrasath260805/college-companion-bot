@@ -246,6 +246,7 @@ const Chat = () => {
       .select('*');
 
     let botResponse: string;
+    let botImageUrl: string | null = null;
     let source: string;
     
     const contentLower = content.toLowerCase().trim();
@@ -368,8 +369,9 @@ const Chat = () => {
       topMatch.score === secondMatch.score && topMatch.score > 0;
 
     if (hasConfidentMatch && !hasAmbiguousMatches) {
-      // Confident database match
+      // Confident database match - include image if present
       botResponse = topMatch.answer_en;
+      botImageUrl = topMatch.image_url || null;
       source = 'database';
     } else if (hasAmbiguousMatches && scoredQuestions.length <= 3) {
       // Multiple matches - ask for clarification
@@ -406,11 +408,12 @@ const Chat = () => {
       }
     }
 
-    // Add bot response
+    // Add bot response with image if present
     const botMessage: Message = {
       id: crypto.randomUUID(),
       role: 'assistant',
       content: botResponse,
+      image_url: botImageUrl,
       source,
       created_at: new Date().toISOString(),
     };
@@ -423,6 +426,7 @@ const Chat = () => {
       conversation_id: conversation.id,
       role: 'assistant',
       content: botResponse,
+      image_url: botImageUrl,
       source,
     });
 
