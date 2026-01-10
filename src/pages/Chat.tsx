@@ -10,12 +10,18 @@ import { ChatInput } from '@/components/chat/ChatInput';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
+export interface MessageLink {
+  title: string;
+  url: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   image_url?: string | null;
   source?: string | null;
+  links?: MessageLink[] | null;
   created_at: string;
 }
 
@@ -247,6 +253,7 @@ const Chat = () => {
 
     let botResponse: string;
     let botImageUrl: string | null = null;
+    let botLinks: MessageLink[] | null = null;
     let source: string;
     
     const contentLower = content.toLowerCase().trim();
@@ -381,7 +388,7 @@ const Chat = () => {
       botResponse = `I found multiple possible answers. Could you please clarify which one you're asking about?\n\n${options}\n\nOr you can rephrase your question with more specific details (e.g., course name + topic like "BCA fees" or "CSE admission").`;
       source = 'database';
     } else {
-      // Use AI via edge function (fallback for low confidence or no match)
+      // AI fallback - handles both simple responses and image generation
       try {
         const allMessages = [...messages, { role: 'user', content, image_url: imageUrl }];
         const response = await supabase.functions.invoke('chat', {
@@ -401,6 +408,16 @@ const Chat = () => {
 
         botResponse = response.data?.message || 'I apologize, I could not generate a response.';
         source = 'ai';
+        
+        // Handle AI-generated image
+        if (response.data?.generated_image) {
+          botImageUrl = response.data.generated_image;
+        }
+        
+        // Handle learning links
+        if (response.data?.links && Array.isArray(response.data.links)) {
+          botLinks = response.data.links;
+        }
       } catch (error) {
         console.error('AI error:', error);
         botResponse = 'I apologize, but I encountered an error. Please try again.';
@@ -408,12 +425,13 @@ const Chat = () => {
       }
     }
 
-    // Add bot response with image if present
+    // Add bot response with image and links if present
     const botMessage: Message = {
       id: crypto.randomUUID(),
       role: 'assistant',
       content: botResponse,
       image_url: botImageUrl,
+      links: botLinks,
       source,
       created_at: new Date().toISOString(),
     };
@@ -421,7 +439,7 @@ const Chat = () => {
     setMessages(prev => [...prev, botMessage]);
     setIsLoading(false);
 
-    // Save bot message to database
+    // Save bot message to database (links stored in content or separate handling)
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'assistant',
