@@ -1,6 +1,6 @@
 import { Message } from '@/pages/Chat';
 import { Button } from '@/components/ui/button';
-import { Bot, User, Trash2, Database, Sparkles, X, ZoomIn } from 'lucide-react';
+import { Bot, User, Trash2, Database, Sparkles, X, ZoomIn, ExternalLink } from 'lucide-react';
 import { RefObject, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
@@ -108,6 +108,27 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
                   onClick={() => setIsImageOpen(true)}
                 >
                   <ZoomIn className="w-8 h-8 text-white" />
+                </div>
+              </div>
+            )}
+            
+            {/* Learning links shown below content */}
+            {!isUser && message.links && message.links.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-border/50">
+                <p className="text-xs font-medium text-muted-foreground mb-2">📚 Learn more:</p>
+                <div className="flex flex-wrap gap-2">
+                  {message.links.map((link, idx) => (
+                    <a
+                      key={idx}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors"
+                    >
+                      {link.title}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ))}
                 </div>
               </div>
             )}
