@@ -3,10 +3,57 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageSquare, LogIn, UserPlus, GraduationCap, Sparkles, Bot, Shield } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
+import { MessageSquare, LogIn, UserPlus, GraduationCap, Sparkles, Bot, Shield, LogOut, User } from 'lucide-react';
 
 const Index = () => {
-  const { user } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  // Fetch user's avatar
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!user) {
+        setAvatarUrl(null);
+        return;
+      }
+
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single();
+
+        if (data?.avatar_url) {
+          setAvatarUrl(data.avatar_url);
+        }
+      } catch (error) {
+        console.error('Error fetching avatar:', error);
+      }
+    };
+
+    fetchAvatar();
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut();
+  };
+
+  const getInitials = () => {
+    const name = user?.user_metadata?.full_name || user?.email;
+    if (name) {
+      return name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    return 'U';
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -25,12 +72,65 @@ const Index = () => {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link to="/admin/login">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Shield className="w-4 h-4" />
-              Admin
-            </Button>
-          </Link>
+          
+          {user ? (
+            <>
+              {/* Profile Avatar Link */}
+              <Link to="/profile">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Avatar className="w-7 h-7">
+                    <AvatarImage src={avatarUrl || undefined} alt="Profile" />
+                    <AvatarFallback className="text-xs gradient-bg text-primary-foreground">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden sm:inline">Profile</span>
+                </Button>
+              </Link>
+
+              {/* Admin Link - only for admins */}
+              {isAdmin && (
+                <Link to="/admin">
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <Shield className="w-4 h-4" />
+                    <span className="hidden sm:inline">Admin</span>
+                  </Button>
+                </Link>
+              )}
+
+              {/* Logout Button */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={handleLogout}
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/auth">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <LogIn className="w-4 h-4" />
+                  <span className="hidden sm:inline">Login</span>
+                </Button>
+              </Link>
+              <Link to="/auth?mode=register">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Register</span>
+                </Button>
+              </Link>
+              <Link to="/admin/login">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Shield className="w-4 h-4" />
+                  <span className="hidden sm:inline">Admin</span>
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
