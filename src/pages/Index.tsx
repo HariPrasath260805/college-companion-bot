@@ -84,14 +84,13 @@ const Index = () => {
             <>
               {/* Profile Avatar Link */}
               <Link to="/profile">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Avatar className="w-7 h-7">
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Avatar className="w-8 h-8">
                     <AvatarImage src={avatarUrl || undefined} alt="Profile" />
                     <AvatarFallback className="text-xs gradient-bg text-primary-foreground">
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">{displayName || user?.email?.split('@')[0] || 'Profile'}</span>
                 </Button>
               </Link>
 
