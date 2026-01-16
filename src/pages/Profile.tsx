@@ -116,16 +116,16 @@ const Profile = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
 
-      // Upload to Supabase Storage
+      // Upload to Supabase Storage (avatars bucket)
       const { error: uploadError } = await supabase.storage
-        .from('admin-images')
+        .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('admin-images')
+        .from('avatars')
         .getPublicUrl(fileName);
 
       // Add cache buster

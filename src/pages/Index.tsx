@@ -11,6 +11,7 @@ import { MessageSquare, LogIn, UserPlus, GraduationCap, Sparkles, Bot, Shield, L
 const Index = () => {
   const { user, signOut, isAdmin } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
   // Fetch user's avatar
   useEffect(() => {
@@ -23,15 +24,21 @@ const Index = () => {
       try {
         const { data } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, full_name')
           .eq('id', user.id)
           .single();
 
         if (data?.avatar_url) {
           setAvatarUrl(data.avatar_url);
         }
+        if (data?.full_name) {
+          setDisplayName(data.full_name);
+        } else {
+          setDisplayName(user.user_metadata?.full_name || null);
+        }
       } catch (error) {
         console.error('Error fetching avatar:', error);
+        setDisplayName(user.user_metadata?.full_name || null);
       }
     };
 
@@ -84,7 +91,7 @@ const Index = () => {
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">Profile</span>
+                  <span className="hidden sm:inline">{displayName || user?.email?.split('@')[0] || 'Profile'}</span>
                 </Button>
               </Link>
 
