@@ -11,6 +11,54 @@ interface ChatInputProps {
   isLoading: boolean;
 }
 
+// Compress image to reduce size
+const compressImage = (file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = document.createElement('img');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      let { width, height } = img;
+      
+      // Calculate new dimensions maintaining aspect ratio
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Failed to compress image'));
+          },
+          'image/jpeg',
+          quality
+        );
+      } else {
+        reject(new Error('Failed to get canvas context'));
+      }
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// Sanitize filename to remove special characters
+const sanitizeFileName = (name: string): string => {
+  // Remove special characters, keep only alphanumeric, dash, underscore, dot
+  return name
+    .replace(/[^a-zA-Z0-9.-]/g, '_')
+    .replace(/_+/g, '_')
+    .substring(0, 50); // Limit length
+};
+
 export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -21,10 +69,11 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Accept all image types
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
@@ -34,10 +83,11 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    // Increased limit to 10MB since we'll compress
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: 'File too large',
-        description: 'Please select an image under 5MB',
+        description: 'Please select an image under 10MB',
         variant: 'destructive',
       });
       return;
@@ -61,29 +111,59 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
     if (!imageFile || !user) return undefined;
 
     setIsUploading(true);
-    const fileName = `${user.id}/${Date.now()}-${imageFile.name}`;
+    
+    try {
+      // Compress image before upload
+      let uploadData: Blob | File = imageFile;
+      
+      // Compress if larger than 500KB
+      if (imageFile.size > 500 * 1024) {
+        try {
+          uploadData = await compressImage(imageFile, 1200, 0.8);
+        } catch (compressError) {
+          console.warn('Compression failed, using original:', compressError);
+          uploadData = imageFile;
+        }
+      }
 
-    const { data, error } = await supabase.storage
-      .from('chat-images')
-      .upload(fileName, imageFile);
+      // Create safe filename
+      const ext = imageFile.name.split('.').pop() || 'jpg';
+      const safeFileName = `${Date.now()}_${sanitizeFileName(imageFile.name.replace(`.${ext}`, ''))}.jpg`;
+      const filePath = `${user.id}/${safeFileName}`;
 
-    setIsUploading(false);
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(filePath, uploadData, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
 
-    if (error) {
-      console.error('Upload error:', error);
+      if (error) {
+        console.error('Upload error:', error);
+        toast({
+          title: 'Upload failed',
+          description: 'Failed to upload image. Please try again.',
+          variant: 'destructive',
+        });
+        return undefined;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(data.path);
+
+      return publicUrl;
+    } catch (err) {
+      console.error('Upload error:', err);
       toast({
         title: 'Upload failed',
         description: 'Failed to upload image. Please try again.',
         variant: 'destructive',
       });
       return undefined;
+    } finally {
+      setIsUploading(false);
     }
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('chat-images')
-      .getPublicUrl(data.path);
-
-    return publicUrl;
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -137,7 +217,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif,.webp,.avif,.bmp,.gif,.tiff"
             className="hidden"
             onChange={handleImageSelect}
           />
