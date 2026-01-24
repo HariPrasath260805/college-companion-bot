@@ -94,20 +94,20 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
             {/* Text content always shown first */}
             <p className="whitespace-pre-wrap text-left">{message.content}</p>
             
-            {/* Image shown below text if present */}
+            {/* Image shown below text if present - compact size */}
             {message.image_url && (
-              <div className="mt-3 relative group/image">
+              <div className="mt-2 relative group/image inline-block">
                 <img 
                   src={message.image_url} 
                   alt={isUser ? "Uploaded image" : "Answer image"} 
-                  className="max-w-xs sm:max-w-sm md:max-w-md rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                  className="max-w-[120px] sm:max-w-[150px] md:max-w-[180px] max-h-[120px] sm:max-h-[150px] md:max-h-[180px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-cover"
                   onClick={() => setIsImageOpen(true)}
                 />
                 <div 
-                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-lg cursor-pointer"
+                  className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-lg cursor-pointer"
                   onClick={() => setIsImageOpen(true)}
                 >
-                  <ZoomIn className="w-8 h-8 text-white" />
+                  <ZoomIn className="w-5 h-5 text-white" />
                 </div>
               </div>
             )}
