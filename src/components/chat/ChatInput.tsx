@@ -190,29 +190,10 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   };
 
   return (
-    <div className="border-t border-border p-4">
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-        <div className="flex items-end gap-2">
-          {/* Image Preview - ChatGPT style small thumbnail */}
-          {imagePreview && (
-            <div className="relative shrink-0">
-              <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-muted">
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <button
-                type="button"
-                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-colors"
-                onClick={removeImage}
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
+    <div className="border-t border-border p-3 md:p-4 bg-background/80 backdrop-blur-sm">
+      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
+        {/* ChatGPT-style input container */}
+        <div className="relative flex items-end gap-1.5 md:gap-2 bg-muted/50 rounded-2xl border border-border p-2 md:p-3 shadow-sm">
           {/* Image Upload Button */}
           <input
             ref={fileInputRef}
@@ -221,46 +202,67 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
             className="hidden"
             onChange={handleImageSelect}
           />
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
+            className="shrink-0 p-1.5 md:p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading || isUploading}
           >
-            <Image className="w-5 h-5" />
-          </Button>
+            <Image className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
 
-          {/* Text Input */}
-          <div className="flex-1 relative">
+          {/* Input area with image preview */}
+          <div className="flex-1 flex flex-col gap-2 min-w-0">
+            {/* Image Preview - ChatGPT style */}
+            {imagePreview && (
+              <div className="flex items-start">
+                <div className="relative">
+                  <div className="w-14 h-14 md:w-16 md:h-16 rounded-xl overflow-hidden border border-border bg-background shadow-sm">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-foreground/80 text-background flex items-center justify-center hover:bg-foreground transition-colors shadow-sm"
+                    onClick={removeImage}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Text Input */}
             <Textarea
               ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-              className="min-h-[52px] max-h-32 resize-none pr-12"
+              placeholder="Message College AI..."
+              className="min-h-[24px] md:min-h-[28px] max-h-[120px] md:max-h-[200px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm md:text-base placeholder:text-muted-foreground/60"
               disabled={isLoading || isUploading}
+              rows={1}
             />
           </div>
 
           {/* Send Button */}
-          <Button
+          <button
             type="submit"
-            size="icon"
-            className="shrink-0 gradient-bg text-primary-foreground"
+            className="shrink-0 p-1.5 md:p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={isLoading || isUploading || (!message.trim() && !imageFile)}
           >
             {isLoading || isUploading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 md:w-5 md:h-5" />
             )}
-          </Button>
+          </button>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center mt-2">
+        <p className="text-[10px] md:text-xs text-muted-foreground/70 text-center mt-2">
           College AI can make mistakes. Verify important information.
         </p>
       </form>
