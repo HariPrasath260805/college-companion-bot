@@ -192,27 +192,27 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   return (
     <div className="border-t border-border p-4">
       <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-        {/* Image Preview */}
-        {imagePreview && (
-          <div className="mb-3 relative inline-block">
-            <img 
-              src={imagePreview} 
-              alt="Preview" 
-              className="max-h-32 rounded-lg border border-border"
-            />
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-2 -right-2 h-6 w-6"
-              onClick={removeImage}
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          </div>
-        )}
-
         <div className="flex items-end gap-2">
+          {/* Image Preview - ChatGPT style small thumbnail */}
+          {imagePreview && (
+            <div className="relative shrink-0">
+              <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-muted">
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <button
+                type="button"
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                onClick={removeImage}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           {/* Image Upload Button */}
           <input
             ref={fileInputRef}
