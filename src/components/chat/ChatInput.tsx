@@ -69,10 +69,8 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Handle image from file or blob
+  const processImage = async (file: File | Blob, name?: string) => {
     // Accept all image types
     if (!file.type.startsWith('image/')) {
       toast({
@@ -93,10 +91,35 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
       return;
     }
 
-    setImageFile(file);
+    const imageFileObj = file instanceof File ? file : new File([file], name || 'pasted-image.png', { type: file.type });
+    setImageFile(imageFileObj);
+    
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImage(file);
+  };
+
+  // Handle paste event for clipboard images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) {
+          await processImage(blob, 'pasted-image.png');
+        }
+        break;
+      }
+    }
   };
 
   const removeImage = () => {
@@ -241,7 +264,8 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message College AI..."
+              onPaste={handlePaste}
+              placeholder="Message College AI... (Ctrl+V to paste images)"
               className="min-h-[24px] md:min-h-[28px] max-h-[120px] md:max-h-[200px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm md:text-base placeholder:text-muted-foreground/60"
               disabled={isLoading || isUploading}
               rows={1}
