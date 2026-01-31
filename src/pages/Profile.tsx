@@ -86,11 +86,49 @@ const Profile = () => {
     fileInputRef.current?.click();
   };
 
+  // Compress image utility
+  const compressImage = (file: File, maxWidth: number = 400, quality: number = 0.8): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        let { width, height } = img;
+        
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Failed to compress image'));
+            },
+            'image/jpeg',
+            quality
+          );
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
+    // Accept all image types
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file',
@@ -100,11 +138,11 @@ const Profile = () => {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Increased limit to 10MB since we'll compress
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: 'File too large',
-        description: 'Please select an image under 5MB',
+        description: 'Please select an image under 10MB',
         variant: 'destructive',
       });
       return;
@@ -113,13 +151,27 @@ const Profile = () => {
     setIsUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/avatar.${fileExt}`;
+      // Compress image before upload
+      let uploadData: Blob | File = file;
+      
+      if (file.size > 200 * 1024) {
+        try {
+          uploadData = await compressImage(file, 400, 0.8);
+        } catch (compressError) {
+          console.warn('Compression failed, using original:', compressError);
+          uploadData = file;
+        }
+      }
+
+      const fileName = `${user.id}/avatar.jpg`;
 
       // Upload to Supabase Storage (avatars bucket)
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, uploadData, { 
+          upsert: true,
+          contentType: 'image/jpeg'
+        });
 
       if (uploadError) throw uploadError;
 
@@ -250,7 +302,7 @@ const Profile = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.heic,.heif,.webp,.avif,.bmp,.gif,.tiff"
                   onChange={handleFileChange}
                   className="hidden"
                 />

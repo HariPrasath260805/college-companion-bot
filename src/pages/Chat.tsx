@@ -51,17 +51,84 @@ const Chat = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Load conversations
+  // Load conversations and setup realtime
   useEffect(() => {
     if (user) {
       loadConversations();
+      
+      // Subscribe to new conversations
+      const conversationChannel = supabase
+        .channel('conversations-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'conversations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setConversations(prev => [payload.new as Conversation, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+              setConversations(prev => 
+                prev.map(c => c.id === payload.new.id ? payload.new as Conversation : c)
+              );
+            } else if (payload.eventType === 'DELETE') {
+              setConversations(prev => prev.filter(c => c.id !== payload.old.id));
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(conversationChannel);
+      };
     }
   }, [user]);
 
-  // Load messages when conversation changes
+  // Load messages when conversation changes + realtime subscription
   useEffect(() => {
     if (currentConversation) {
       loadMessages(currentConversation.id);
+      
+      // Subscribe to new messages for current conversation
+      const messageChannel = supabase
+        .channel(`messages-${currentConversation.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${currentConversation.id}`
+          },
+          (payload) => {
+            const newMsg = payload.new as Message;
+            setMessages(prev => {
+              // Avoid duplicates (optimistic updates)
+              if (prev.some(m => m.id === newMsg.id)) return prev;
+              return [...prev, { ...newMsg, role: newMsg.role as 'user' | 'assistant' }];
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${currentConversation.id}`
+          },
+          (payload) => {
+            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(messageChannel);
+      };
     } else {
       setMessages([]);
     }
