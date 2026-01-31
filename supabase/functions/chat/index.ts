@@ -176,7 +176,14 @@ If the user asks to change the language, acknowledge the change and respond in t
     }
 
     const data = await response.json();
-    let aiMessage = data.choices?.[0]?.message?.content || 'I apologize, but I could not generate a response. Please try again.';
+    const fallbackMessage = "I'm sorry, I couldn't find a confident answer to your question right now. Please try rephrasing your question or contact the college helpdesk for assistance.";
+    
+    let aiMessage = data.choices?.[0]?.message?.content;
+    
+    // Check if response is empty, too short, or indicates uncertainty
+    if (!aiMessage || aiMessage.trim().length < 10) {
+      aiMessage = fallbackMessage;
+    }
 
     // Check if response is JSON (educational with image)
     let responseData: {
