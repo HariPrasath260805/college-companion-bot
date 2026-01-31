@@ -313,7 +313,7 @@ const Chat = () => {
       setCurrentConversation({ ...conversation, title });
     }
 
-    // Search for answer in database with structured matching
+    // Search for answer in database first (database-first approach)
     const { data: questions } = await supabase
       .from('questions')
       .select('*');
@@ -325,137 +325,98 @@ const Chat = () => {
     
     const contentLower = content.toLowerCase().trim();
     
-    // Define known entities for extraction
-    const knownCourses = [
-      'bcom', 'b.com', 'bca', 'bba', 'bsc', 'b.sc', 'ba', 'b.a',
-      'mcom', 'm.com', 'mca', 'mba', 'msc', 'm.sc', 'ma', 'm.a',
-      'cse', 'ece', 'eee', 'mech', 'civil', 'it', 'aids', 'aiml',
-      'computer science', 'electronics', 'electrical', 'mechanical',
-      'commerce', 'arts', 'science', 'engineering', 'management',
-      'pgdca', 'diploma', 'phd', 'pg', 'ug'
-    ];
-    
-    const knownTopics = [
-      'fees', 'fee structure', 'fee details', 'tuition',
-      'admission', 'admissions', 'eligibility', 'entrance', 'apply',
-      'exam', 'examination', 'schedule', 'timetable', 'syllabus',
-      'hostel', 'accommodation', 'rooms', 'mess',
-      'placement', 'placements', 'job', 'career', 'internship',
-      'scholarship', 'scholarships', 'financial aid',
-      'faculty', 'teachers', 'professors', 'staff',
-      'library', 'lab', 'laboratory', 'facilities',
-      'events', 'fest', 'cultural', 'sports',
-      'transport', 'bus', 'shuttle'
-    ];
-    
-    // Generic words to avoid matching alone
-    const genericWords = ['fees', 'admission', 'course', 'exam', 'hostel', 'placement', 'details', 'information', 'about', 'what', 'how', 'when', 'where', 'tell', 'me'];
-    
-    // Extract course/entity from user input
-    const extractedCourse = knownCourses.find(course => 
-      contentLower.includes(course.toLowerCase())
-    );
-    
-    // Extract topic from user input
-    const extractedTopic = knownTopics.find(topic => 
-      contentLower.includes(topic.toLowerCase())
-    );
-    
-    // Score-based matching function
-    const scoreMatch = (question: { question_en: string; category?: string | null; keywords?: string[] | null }) => {
-      const questionLower = question.question_en.toLowerCase();
-      const category = question.category?.toLowerCase() || '';
-      const keywords = question.keywords?.map(k => k.toLowerCase()) || [];
+    // Simple but effective matching function
+    const findBestMatch = () => {
+      if (!questions || questions.length === 0) return null;
       
-      let score = 0;
+      // Normalize text for comparison
+      const normalize = (text: string) => 
+        text.toLowerCase()
+          .replace(/[?.,!]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
       
-      // Check for course match (high weight)
-      if (extractedCourse) {
-        if (questionLower.includes(extractedCourse) || 
-            keywords.some(k => k.includes(extractedCourse))) {
-          score += 50;
+      const normalizedInput = normalize(contentLower);
+      const inputWords = normalizedInput.split(' ').filter(w => w.length > 2);
+      
+      // Score each question
+      const scored = questions.map(q => {
+        const questionText = normalize(q.question_en);
+        const questionWords = questionText.split(' ').filter(w => w.length > 2);
+        const category = q.category?.toLowerCase() || '';
+        
+        let score = 0;
+        
+        // Exact match (highest priority)
+        if (normalizedInput === questionText) {
+          score = 100;
         }
-      }
-      
-      // Check for topic match (high weight)
-      if (extractedTopic) {
-        if (questionLower.includes(extractedTopic) || 
-            category.includes(extractedTopic) ||
-            keywords.some(k => k.includes(extractedTopic))) {
-          score += 40;
+        // Input contains question or vice versa
+        else if (normalizedInput.includes(questionText) || questionText.includes(normalizedInput)) {
+          score = 80;
         }
-      }
-      
-      // Check for longer phrase matches (prefer specific matches)
-      const userWords = contentLower.split(/\s+/).filter(w => 
-        w.length > 2 && !genericWords.includes(w)
-      );
-      
-      // Consecutive word matching (phrase matching)
-      for (let len = Math.min(5, userWords.length); len >= 2; len--) {
-        for (let i = 0; i <= userWords.length - len; i++) {
-          const phrase = userWords.slice(i, i + len).join(' ');
-          if (questionLower.includes(phrase)) {
-            score += len * 10; // Longer phrases get higher scores
+        else {
+          // Word overlap scoring
+          const matchedWords = inputWords.filter(w => questionText.includes(w));
+          const overlapRatio = matchedWords.length / Math.max(inputWords.length, 1);
+          
+          // At least 50% word overlap needed
+          if (overlapRatio >= 0.5) {
+            score = 40 + (overlapRatio * 40);
+          }
+          
+          // Category bonus
+          if (category && inputWords.some(w => category.includes(w))) {
+            score += 10;
+          }
+          
+          // Keyword bonus (if keywords exist)
+          if (q.keywords && Array.isArray(q.keywords)) {
+            const keywordMatch = q.keywords.some(k => 
+              normalizedInput.includes(k.toLowerCase())
+            );
+            if (keywordMatch) score += 15;
           }
         }
-      }
-      
-      // Individual significant word matches (lower weight)
-      userWords.forEach(word => {
-        if (questionLower.includes(word)) {
-          score += 5;
-        }
-        if (keywords.some(k => k.includes(word))) {
-          score += 3;
-        }
+        
+        return { ...q, score };
       });
       
-      return score;
+      // Filter and sort by score
+      const matches = scored
+        .filter(q => q.score >= 40) // Minimum threshold
+        .sort((a, b) => b.score - a.score);
+      
+      if (matches.length === 0) return null;
+      
+      // Check for ambiguous matches (multiple with same high score)
+      const topScore = matches[0].score;
+      const topMatches = matches.filter(m => m.score === topScore);
+      
+      if (topMatches.length > 1 && topScore < 80) {
+        // Ambiguous - return clarification needed
+        return { ambiguous: true, matches: topMatches.slice(0, 3) };
+      }
+      
+      return { ambiguous: false, match: matches[0] };
     };
     
-    // Score all questions
-    const scoredQuestions = questions?.map(q => ({
-      ...q,
-      score: scoreMatch(q)
-    })).filter(q => q.score > 0) || [];
+    const matchResult = findBestMatch();
     
-    // Sort by score descending
-    scoredQuestions.sort((a, b) => b.score - a.score);
-    
-    // Determine if we have a confident match
-    const topMatch = scoredQuestions[0];
-    const secondMatch = scoredQuestions[1];
-    
-    // Conditions for using database answer:
-    // 1. Must have both course AND topic extracted and matched (score >= 90)
-    // 2. OR must have very high confidence single match with significant lead
-    // 3. Must not have multiple equally-good matches
-    
-    const hasConfidentMatch = topMatch && (
-      // High score with course + topic
-      (topMatch.score >= 90 && extractedCourse && extractedTopic) ||
-      // Very high score with significant lead over second match
-      (topMatch.score >= 80 && (!secondMatch || topMatch.score - secondMatch.score >= 30))
-    );
-    
-    const hasAmbiguousMatches = topMatch && secondMatch && 
-      topMatch.score === secondMatch.score && topMatch.score > 0;
-
-    if (hasConfidentMatch && !hasAmbiguousMatches) {
-      // Confident database match - include image if present
-      botResponse = topMatch.answer_en;
-      botImageUrl = topMatch.image_url || null;
+    if (matchResult && !matchResult.ambiguous && matchResult.match) {
+      // Confident database match
+      botResponse = matchResult.match.answer_en;
+      botImageUrl = matchResult.match.image_url || null;
       source = 'database';
-    } else if (hasAmbiguousMatches && scoredQuestions.length <= 3) {
+    } else if (matchResult && matchResult.ambiguous && matchResult.matches) {
       // Multiple matches - ask for clarification
-      const options = scoredQuestions.slice(0, 3).map((q, i) => 
+      const options = matchResult.matches.map((q: any, i: number) => 
         `${i + 1}. ${q.question_en}`
       ).join('\n');
-      botResponse = `I found multiple possible answers. Could you please clarify which one you're asking about?\n\n${options}\n\nOr you can rephrase your question with more specific details (e.g., course name + topic like "BCA fees" or "CSE admission").`;
+      botResponse = `I found multiple possible answers. Could you please clarify which one you are asking about?\n\n${options}\n\nPlease rephrase your question with more specific details.`;
       source = 'database';
     } else {
-      // AI fallback - handles both simple responses and image generation
+      // No database match - use AI fallback
       try {
         const allMessages = [...messages, { role: 'user', content, image_url: imageUrl }];
         const response = await supabase.functions.invoke('chat', {
@@ -473,7 +434,7 @@ const Chat = () => {
           throw new Error(response.error.message);
         }
 
-        botResponse = response.data?.message || 'I apologize, I could not generate a response.';
+        botResponse = response.data?.message || "Sorry, I don't have that information right now. Please contact the college office for accurate details.";
         source = 'ai';
         
         // Handle AI-generated image
@@ -487,7 +448,7 @@ const Chat = () => {
         }
       } catch (error) {
         console.error('AI error:', error);
-        botResponse = 'I apologize, but I encountered an error. Please try again.';
+        botResponse = "Sorry, I don't have that information right now. Please contact the college office for accurate details.";
         source = 'ai';
       }
     }
