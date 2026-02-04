@@ -321,126 +321,125 @@ const Chat = () => {
     // IMPORTANT: Skip database check if user uploaded an image - go directly to AI
     const hasImage = !!imageUrl;
     
-    // Common single keywords that should NOT trigger database match alone
-    const commonKeywords = [
-      'fee', 'fees', 'exam', 'exams', 'result', 'results', 'admission', 
-      'admissions', 'course', 'courses', 'hostel', 'library', 'class',
-      'student', 'teacher', 'college', 'university', 'department'
-    ];
-    
-    // Normalize text for comparison
+    // Normalize text for comparison - remove filler words and punctuation
     const normalize = (text: string) => 
       text.toLowerCase()
         .replace(/[?.,!'"]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
     
-    const contentLower = content.toLowerCase().trim();
-    const normalizedInput = normalize(contentLower);
-    const inputWords = normalizedInput.split(' ').filter(w => w.length > 2);
+    // Extract key terms (remove common filler words)
+    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you'];
     
-    // Check if input is just common keywords (too vague)
-    const isVagueQuery = inputWords.length <= 2 && 
-      inputWords.every(w => commonKeywords.includes(w));
+    const extractKeyTerms = (text: string) => {
+      return normalize(text)
+        .split(' ')
+        .filter(w => w.length > 1 && !fillerWords.includes(w));
+    };
     
-    // Smart matching function with high confidence threshold
+    const normalizedInput = normalize(content);
+    const inputTerms = extractKeyTerms(content);
+    
+    // Check if query is too vague (single common word only)
+    const singleCommonWords = ['fee', 'fees', 'exam', 'result', 'admission', 'course', 'hostel'];
+    const isVagueQuery = inputTerms.length === 1 && singleCommonWords.includes(inputTerms[0]);
+    
+    // Smart matching function
     const findBestMatch = async () => {
-      // Skip database for images or vague queries
-      if (hasImage || isVagueQuery) return null;
+      // Skip database for images
+      if (hasImage) return null;
       
+      // For vague queries, still try to find matches but require higher confidence
       const { data: questions } = await supabase
         .from('questions')
         .select('*');
       
       if (!questions || questions.length === 0) return null;
       
-      // Score each question with semantic similarity
+      // Score each question
       const scored = questions.map(q => {
         const questionText = normalize(q.question_en);
-        const questionWords = questionText.split(' ').filter(w => w.length > 2);
+        const questionTerms = extractKeyTerms(q.question_en);
+        const answerTerms = extractKeyTerms(q.answer_en);
         const category = q.category?.toLowerCase() || '';
         const keywords = q.keywords?.map((k: string) => k.toLowerCase()) || [];
         
         let score = 0;
         let matchReason = '';
         
-        // 1. Exact match (100% confidence)
+        // 1. Exact normalized match (100%)
         if (normalizedInput === questionText) {
           score = 100;
           matchReason = 'exact';
         }
-        // 2. Input substantially contains question or vice versa (85% confidence)
-        else if (normalizedInput.includes(questionText) || questionText.includes(normalizedInput)) {
-          // Only if significant length match (not just 1-2 words)
-          if (Math.min(normalizedInput.length, questionText.length) > 10) {
-            score = 85;
-            matchReason = 'substring';
+        
+        // 2. Check if all input terms appear in question (high confidence)
+        if (score === 0 && inputTerms.length >= 1) {
+          const matchedTerms = inputTerms.filter(term => 
+            questionTerms.some(qt => qt.includes(term) || term.includes(qt)) ||
+            questionText.includes(term)
+          );
+          
+          const matchRatio = matchedTerms.length / inputTerms.length;
+          
+          // Also check if question terms appear in input
+          const reverseMatchedTerms = questionTerms.filter(qt =>
+            inputTerms.some(term => qt.includes(term) || term.includes(qt)) ||
+            normalizedInput.includes(qt)
+          );
+          const reverseMatchRatio = questionTerms.length > 0 
+            ? reverseMatchedTerms.length / questionTerms.length 
+            : 0;
+          
+          // Combined score
+          if (matchRatio >= 0.8 && reverseMatchRatio >= 0.3) {
+            score = 85 + (matchRatio * 10);
+            matchReason = 'term-match';
+          } else if (matchRatio >= 0.6 && reverseMatchRatio >= 0.2) {
+            score = 70 + (matchRatio * 10);
+            matchReason = 'partial-match';
           }
         }
         
-        // 3. Semantic word overlap scoring
-        if (score === 0) {
-          // Remove common keywords from consideration for overlap
-          const meaningfulInputWords = inputWords.filter(w => !commonKeywords.includes(w));
-          const meaningfulQuestionWords = questionWords.filter(w => !commonKeywords.includes(w));
-          
-          // Count matching meaningful words
-          const matchedMeaningful = meaningfulInputWords.filter(w => 
-            meaningfulQuestionWords.some(qw => qw.includes(w) || w.includes(qw))
+        // 3. Keyword array match
+        if (score === 0 && keywords.length > 0) {
+          const keywordMatches = keywords.filter((k: string) => 
+            inputTerms.some(term => k.includes(term) || term.includes(k))
           );
-          
-          // Also count matched common words but with lower weight
-          const matchedCommon = inputWords.filter(w => 
-            commonKeywords.includes(w) && questionWords.some(qw => qw.includes(w))
+          if (keywordMatches.length >= 1) {
+            score = 75 + (keywordMatches.length * 5);
+            matchReason = 'keywords';
+          }
+        }
+        
+        // 4. Category + term combination
+        if (score === 0 && category) {
+          const categoryMatch = inputTerms.some(t => category.includes(t) || t.includes(category));
+          const hasOtherMatch = inputTerms.some(t => 
+            questionTerms.some(qt => qt.includes(t) || t.includes(qt))
           );
-          
-          // Calculate weighted overlap
-          const meaningfulOverlap = meaningfulInputWords.length > 0 
-            ? matchedMeaningful.length / meaningfulInputWords.length 
-            : 0;
-          const commonOverlap = matchedCommon.length > 0 ? 0.2 : 0; // Small bonus for matching common words
-          
-          // Require at least 60% meaningful word overlap
-          if (meaningfulOverlap >= 0.6 && meaningfulInputWords.length >= 2) {
-            score = 50 + (meaningfulOverlap * 35) + (commonOverlap * 10);
-            matchReason = 'semantic';
-          }
-          
-          // Keyword array match (direct match with stored keywords)
-          if (keywords.length > 0) {
-            const keywordMatches = keywords.filter((k: string) => 
-              normalizedInput.includes(k) && k.length > 3
-            );
-            if (keywordMatches.length >= 2 || 
-                (keywordMatches.length >= 1 && keywordMatches[0].length > 5)) {
-              score = Math.max(score, 70 + (keywordMatches.length * 5));
-              matchReason = 'keywords';
-            }
-          }
-          
-          // Category relevance bonus
-          if (category && meaningfulInputWords.some(w => category.includes(w))) {
-            score += 5;
+          if (categoryMatch && hasOtherMatch) {
+            score = 72;
+            matchReason = 'category-term';
           }
         }
         
         return { ...q, score, matchReason };
       });
       
-      // Filter by 70% confidence threshold
-      const CONFIDENCE_THRESHOLD = 70;
+      // Filter and sort
+      const CONFIDENCE_THRESHOLD = isVagueQuery ? 85 : 70;
       const matches = scored
         .filter(q => q.score >= CONFIDENCE_THRESHOLD)
         .sort((a, b) => b.score - a.score);
       
       if (matches.length === 0) return null;
       
-      // Check for ambiguous matches (multiple with similar scores)
+      // Return best match or ambiguous if multiple close scores
       const topScore = matches[0].score;
-      const topMatches = matches.filter(m => m.score >= topScore - 10);
+      const topMatches = matches.filter(m => m.score >= topScore - 5);
       
-      if (topMatches.length > 1 && topScore < 85) {
-        // Ambiguous - return clarification needed
+      if (topMatches.length > 1 && topScore < 90) {
         return { ambiguous: true, matches: topMatches.slice(0, 3) };
       }
       
