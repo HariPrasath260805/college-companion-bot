@@ -313,87 +313,133 @@ const Chat = () => {
       setCurrentConversation({ ...conversation, title });
     }
 
-    // Search for answer in database first (database-first approach)
-    const { data: questions } = await supabase
-      .from('questions')
-      .select('*');
-
     let botResponse: string;
     let botImageUrl: string | null = null;
     let botLinks: MessageLink[] | null = null;
     let source: string;
     
-    const contentLower = content.toLowerCase().trim();
+    // IMPORTANT: Skip database check if user uploaded an image - go directly to AI
+    const hasImage = !!imageUrl;
     
-    // Simple but effective matching function
-    const findBestMatch = () => {
+    // Common single keywords that should NOT trigger database match alone
+    const commonKeywords = [
+      'fee', 'fees', 'exam', 'exams', 'result', 'results', 'admission', 
+      'admissions', 'course', 'courses', 'hostel', 'library', 'class',
+      'student', 'teacher', 'college', 'university', 'department'
+    ];
+    
+    // Normalize text for comparison
+    const normalize = (text: string) => 
+      text.toLowerCase()
+        .replace(/[?.,!'"]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    const contentLower = content.toLowerCase().trim();
+    const normalizedInput = normalize(contentLower);
+    const inputWords = normalizedInput.split(' ').filter(w => w.length > 2);
+    
+    // Check if input is just common keywords (too vague)
+    const isVagueQuery = inputWords.length <= 2 && 
+      inputWords.every(w => commonKeywords.includes(w));
+    
+    // Smart matching function with high confidence threshold
+    const findBestMatch = async () => {
+      // Skip database for images or vague queries
+      if (hasImage || isVagueQuery) return null;
+      
+      const { data: questions } = await supabase
+        .from('questions')
+        .select('*');
+      
       if (!questions || questions.length === 0) return null;
       
-      // Normalize text for comparison
-      const normalize = (text: string) => 
-        text.toLowerCase()
-          .replace(/[?.,!]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-      
-      const normalizedInput = normalize(contentLower);
-      const inputWords = normalizedInput.split(' ').filter(w => w.length > 2);
-      
-      // Score each question
+      // Score each question with semantic similarity
       const scored = questions.map(q => {
         const questionText = normalize(q.question_en);
         const questionWords = questionText.split(' ').filter(w => w.length > 2);
         const category = q.category?.toLowerCase() || '';
+        const keywords = q.keywords?.map((k: string) => k.toLowerCase()) || [];
         
         let score = 0;
+        let matchReason = '';
         
-        // Exact match (highest priority)
+        // 1. Exact match (100% confidence)
         if (normalizedInput === questionText) {
           score = 100;
+          matchReason = 'exact';
         }
-        // Input contains question or vice versa
+        // 2. Input substantially contains question or vice versa (85% confidence)
         else if (normalizedInput.includes(questionText) || questionText.includes(normalizedInput)) {
-          score = 80;
-        }
-        else {
-          // Word overlap scoring
-          const matchedWords = inputWords.filter(w => questionText.includes(w));
-          const overlapRatio = matchedWords.length / Math.max(inputWords.length, 1);
-          
-          // At least 50% word overlap needed
-          if (overlapRatio >= 0.5) {
-            score = 40 + (overlapRatio * 40);
-          }
-          
-          // Category bonus
-          if (category && inputWords.some(w => category.includes(w))) {
-            score += 10;
-          }
-          
-          // Keyword bonus (if keywords exist)
-          if (q.keywords && Array.isArray(q.keywords)) {
-            const keywordMatch = q.keywords.some(k => 
-              normalizedInput.includes(k.toLowerCase())
-            );
-            if (keywordMatch) score += 15;
+          // Only if significant length match (not just 1-2 words)
+          if (Math.min(normalizedInput.length, questionText.length) > 10) {
+            score = 85;
+            matchReason = 'substring';
           }
         }
         
-        return { ...q, score };
+        // 3. Semantic word overlap scoring
+        if (score === 0) {
+          // Remove common keywords from consideration for overlap
+          const meaningfulInputWords = inputWords.filter(w => !commonKeywords.includes(w));
+          const meaningfulQuestionWords = questionWords.filter(w => !commonKeywords.includes(w));
+          
+          // Count matching meaningful words
+          const matchedMeaningful = meaningfulInputWords.filter(w => 
+            meaningfulQuestionWords.some(qw => qw.includes(w) || w.includes(qw))
+          );
+          
+          // Also count matched common words but with lower weight
+          const matchedCommon = inputWords.filter(w => 
+            commonKeywords.includes(w) && questionWords.some(qw => qw.includes(w))
+          );
+          
+          // Calculate weighted overlap
+          const meaningfulOverlap = meaningfulInputWords.length > 0 
+            ? matchedMeaningful.length / meaningfulInputWords.length 
+            : 0;
+          const commonOverlap = matchedCommon.length > 0 ? 0.2 : 0; // Small bonus for matching common words
+          
+          // Require at least 60% meaningful word overlap
+          if (meaningfulOverlap >= 0.6 && meaningfulInputWords.length >= 2) {
+            score = 50 + (meaningfulOverlap * 35) + (commonOverlap * 10);
+            matchReason = 'semantic';
+          }
+          
+          // Keyword array match (direct match with stored keywords)
+          if (keywords.length > 0) {
+            const keywordMatches = keywords.filter((k: string) => 
+              normalizedInput.includes(k) && k.length > 3
+            );
+            if (keywordMatches.length >= 2 || 
+                (keywordMatches.length >= 1 && keywordMatches[0].length > 5)) {
+              score = Math.max(score, 70 + (keywordMatches.length * 5));
+              matchReason = 'keywords';
+            }
+          }
+          
+          // Category relevance bonus
+          if (category && meaningfulInputWords.some(w => category.includes(w))) {
+            score += 5;
+          }
+        }
+        
+        return { ...q, score, matchReason };
       });
       
-      // Filter and sort by score
+      // Filter by 70% confidence threshold
+      const CONFIDENCE_THRESHOLD = 70;
       const matches = scored
-        .filter(q => q.score >= 40) // Minimum threshold
+        .filter(q => q.score >= CONFIDENCE_THRESHOLD)
         .sort((a, b) => b.score - a.score);
       
       if (matches.length === 0) return null;
       
-      // Check for ambiguous matches (multiple with same high score)
+      // Check for ambiguous matches (multiple with similar scores)
       const topScore = matches[0].score;
-      const topMatches = matches.filter(m => m.score === topScore);
+      const topMatches = matches.filter(m => m.score >= topScore - 10);
       
-      if (topMatches.length > 1 && topScore < 80) {
+      if (topMatches.length > 1 && topScore < 85) {
         // Ambiguous - return clarification needed
         return { ambiguous: true, matches: topMatches.slice(0, 3) };
       }
@@ -401,10 +447,10 @@ const Chat = () => {
       return { ambiguous: false, match: matches[0] };
     };
     
-    const matchResult = findBestMatch();
+    const matchResult = await findBestMatch();
     
     if (matchResult && !matchResult.ambiguous && matchResult.match) {
-      // Confident database match
+      // Confident database match (70%+ confidence)
       botResponse = matchResult.match.answer_en;
       botImageUrl = matchResult.match.image_url || null;
       source = 'database';
@@ -413,10 +459,10 @@ const Chat = () => {
       const options = matchResult.matches.map((q: any, i: number) => 
         `${i + 1}. ${q.question_en}`
       ).join('\n');
-      botResponse = `I found multiple possible answers. Could you please clarify which one you are asking about?\n\n${options}\n\nPlease rephrase your question with more specific details.`;
+      botResponse = `I found multiple possible answers. Could you please clarify which one you are asking about?\n\n${options}\n\nPlease provide more specific details.`;
       source = 'database';
     } else {
-      // No database match - use AI fallback
+      // No database match OR image input - use AI
       try {
         const allMessages = [...messages, { role: 'user', content, image_url: imageUrl }];
         const response = await supabase.functions.invoke('chat', {
@@ -434,7 +480,7 @@ const Chat = () => {
           throw new Error(response.error.message);
         }
 
-        botResponse = response.data?.message || "Sorry, I don't have that information right now. Please contact the college office for accurate details.";
+        botResponse = response.data?.message || "I don't have exact information for this. Could you please clarify your question?";
         source = 'ai';
         
         // Handle AI-generated image
@@ -448,7 +494,7 @@ const Chat = () => {
         }
       } catch (error) {
         console.error('AI error:', error);
-        botResponse = "Sorry, I don't have that information right now. Please contact the college office for accurate details.";
+        botResponse = "I don't have exact information for this. Could you please clarify your question?";
         source = 'ai';
       }
     }
