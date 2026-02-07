@@ -374,18 +374,21 @@ const Chat = () => {
         }
         
         // 2. Check if all input terms appear in question (high confidence)
+        // IMPORTANT: Use EXACT FULL WORD matching, not partial/substring matching
         if (score === 0 && inputTerms.length >= 1) {
           const matchedTerms = inputTerms.filter(term => 
-            questionTerms.some(qt => qt.includes(term) || term.includes(qt)) ||
-            questionText.includes(term)
+            // Only match if the FULL word matches exactly
+            questionTerms.some(qt => qt === term) ||
+            // Or if it's a meaningful longer word that contains the term as a complete word
+            questionTerms.some(qt => qt.length > 5 && (qt.startsWith(term + ' ') || qt.endsWith(' ' + term)))
           );
           
           const matchRatio = matchedTerms.length / inputTerms.length;
           
-          // Also check if question terms appear in input
+          // Also check if question terms appear in input - FULL WORD only
           const reverseMatchedTerms = questionTerms.filter(qt =>
-            inputTerms.some(term => qt.includes(term) || term.includes(qt)) ||
-            normalizedInput.includes(qt)
+            // Exact full word match only
+            inputTerms.some(term => qt === term)
           );
           const reverseMatchRatio = questionTerms.length > 0 
             ? reverseMatchedTerms.length / questionTerms.length 
@@ -401,10 +404,11 @@ const Chat = () => {
           }
         }
         
-        // 3. Keyword array match
+        // 3. Keyword array match - FULL WORD matching only
         if (score === 0 && keywords.length > 0) {
           const keywordMatches = keywords.filter((k: string) => 
-            inputTerms.some(term => k.includes(term) || term.includes(k))
+            // Only exact full word matches
+            inputTerms.some(term => k === term)
           );
           if (keywordMatches.length >= 1) {
             score = 75 + (keywordMatches.length * 5);
@@ -412,11 +416,12 @@ const Chat = () => {
           }
         }
         
-        // 4. Category + term combination
+        // 4. Category + term combination - FULL WORD matching only
         if (score === 0 && category) {
-          const categoryMatch = inputTerms.some(t => category.includes(t) || t.includes(category));
+          const categoryMatch = inputTerms.some(t => category === t);
           const hasOtherMatch = inputTerms.some(t => 
-            questionTerms.some(qt => qt.includes(t) || t.includes(qt))
+            // Only exact full word matches
+            questionTerms.some(qt => qt === t)
           );
           if (categoryMatch && hasOtherMatch) {
             score = 72;
