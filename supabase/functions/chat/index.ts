@@ -240,7 +240,7 @@ If the user asks to change the language, acknowledge the change and respond in t
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'google/gemini-2.5-flash-image-preview',
+                model: 'google/gemini-2.5-flash-image',
                 messages: [
                   {
                     role: 'user',
