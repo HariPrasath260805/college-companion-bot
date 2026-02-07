@@ -328,8 +328,13 @@ const Chat = () => {
         .replace(/\s+/g, ' ')
         .trim();
     
+    // ACTION WORDS that indicate user wants specific info (not just explanation)
+    const actionWords = ['fee', 'fees', 'cost', 'price', 'admission', 'result', 'results', 'exam', 'exams', 
+      'schedule', 'timing', 'deadline', 'date', 'contact', 'phone', 'email', 'address', 'hostel', 
+      'placement', 'syllabus', 'eligibility', 'documents', 'required', 'process', 'apply', 'registration'];
+    
     // Extract key terms (remove common filler words)
-    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you'];
+    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you', 'about', 'explain', 'give', 'details'];
     
     const extractKeyTerms = (text: string) => {
       return normalize(text)
@@ -340,6 +345,12 @@ const Chat = () => {
     const normalizedInput = normalize(content);
     const inputTerms = extractKeyTerms(content);
     
+    // Check if query has ACTION words (fees, admission, etc.) - these should check database
+    const hasActionWord = inputTerms.some(term => actionWords.includes(term));
+    
+    // Check if query is ONLY a subject/topic with no action word - should go to AI for explanation
+    const isExplanationQuery = !hasActionWord && inputTerms.length >= 1;
+    
     // Check if query is too vague (single common word only)
     const singleCommonWords = ['fee', 'fees', 'exam', 'result', 'admission', 'course', 'hostel'];
     const isVagueQuery = inputTerms.length === 1 && singleCommonWords.includes(inputTerms[0]);
@@ -348,6 +359,13 @@ const Chat = () => {
     const findBestMatch = async () => {
       // Skip database for images
       if (hasImage) return null;
+      
+      // Skip database for pure explanation queries (no action words)
+      // e.g., "computer science" should go to AI to explain, not match "computer science fees"
+      if (isExplanationQuery) {
+        console.log('Explanation query detected, skipping database:', inputTerms);
+        return null;
+      }
       
       // For vague queries, still try to find matches but require higher confidence
       const { data: questions } = await supabase
@@ -373,34 +391,39 @@ const Chat = () => {
           matchReason = 'exact';
         }
         
-        // 2. Check if all input terms appear in question (high confidence)
-        // IMPORTANT: Use EXACT FULL WORD matching, not partial/substring matching
+        // 2. Check if input terms match question terms (EXACT FULL WORD only)
+        // CRITICAL: Both subject AND action word must match
+        // e.g., "computer science fees" must match question with both "computer science" AND "fees"
         if (score === 0 && inputTerms.length >= 1) {
           const matchedTerms = inputTerms.filter(term => 
             // Only match if the FULL word matches exactly
-            questionTerms.some(qt => qt === term) ||
-            // Or if it's a meaningful longer word that contains the term as a complete word
-            questionTerms.some(qt => qt.length > 5 && (qt.startsWith(term + ' ') || qt.endsWith(' ' + term)))
+            questionTerms.some(qt => qt === term)
           );
           
-          const matchRatio = matchedTerms.length / inputTerms.length;
+          // Check if question has the action word from input
+          const inputActionWords = inputTerms.filter(t => actionWords.includes(t));
+          const questionActionWords = questionTerms.filter(t => actionWords.includes(t));
+          const actionWordMatch = inputActionWords.length > 0 && 
+            inputActionWords.some(iaw => questionActionWords.includes(iaw));
           
-          // Also check if question terms appear in input - FULL WORD only
-          const reverseMatchedTerms = questionTerms.filter(qt =>
-            // Exact full word match only
-            inputTerms.some(term => qt === term)
-          );
-          const reverseMatchRatio = questionTerms.length > 0 
-            ? reverseMatchedTerms.length / questionTerms.length 
+          // Check subject words (non-action words) match
+          const inputSubjectWords = inputTerms.filter(t => !actionWords.includes(t));
+          const questionSubjectWords = questionTerms.filter(t => !actionWords.includes(t));
+          const subjectMatchCount = inputSubjectWords.filter(isw => 
+            questionSubjectWords.includes(isw)
+          ).length;
+          const subjectMatchRatio = inputSubjectWords.length > 0 
+            ? subjectMatchCount / inputSubjectWords.length 
             : 0;
           
-          // Combined score
-          if (matchRatio >= 0.8 && reverseMatchRatio >= 0.3) {
-            score = 85 + (matchRatio * 10);
-            matchReason = 'term-match';
-          } else if (matchRatio >= 0.6 && reverseMatchRatio >= 0.2) {
-            score = 70 + (matchRatio * 10);
-            matchReason = 'partial-match';
+          // High score only if BOTH action word AND subject match
+          if (actionWordMatch && subjectMatchRatio >= 0.5) {
+            score = 85 + (subjectMatchRatio * 10);
+            matchReason = 'subject-action-match';
+          } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
+            // All terms match exactly
+            score = 90;
+            matchReason = 'all-terms-match';
           }
         }
         

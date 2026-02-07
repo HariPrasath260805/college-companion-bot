@@ -101,29 +101,33 @@ MANDATORY RULES:
 7. Answer education and college-related questions thoroughly
 8. NEVER return an empty response - always provide value
 
-RESPONSE APPROACH:
-- For general education questions: Provide comprehensive, helpful answers
-- For specific college data you don't have: Give general guidance + suggest contacting the college
-- For image analysis: Describe what you see and explain any text/information in the image
+IMPORTANT - ALWAYS INCLUDE HELPFUL LINKS:
+For EVERY response, you MUST include relevant clickable links in your response.
+You MUST respond with a JSON object in this exact format:
 
-${needsImage ? `
-SPECIAL INSTRUCTION FOR THIS RESPONSE:
-The user is asking for an explanation or visualization. You MUST respond with a JSON object in this exact format:
 {
-  "type": "text+image+links",
-  "text": "<your detailed explanation in ${languageName}>",
-  "image_prompt": "<detailed English prompt for generating an educational diagram/illustration that helps explain the concept. Include: clean background, labeled components, educational style, college-level clarity>",
+  "type": "response",
+  "text": "<your detailed response in ${languageName}>",
+  ${needsImage ? '"image_prompt": "<detailed English prompt for generating an educational diagram/illustration>",' : ''}
   "links": [
-    {"title": "<resource name>", "url": "<valid educational URL>"},
-    {"title": "<resource name>", "url": "<valid educational URL>"}
+    {"title": "<Short descriptive title>", "url": "<valid URL>"},
+    {"title": "<Short descriptive title>", "url": "<valid URL>"}
   ]
 }
 
+LINK GUIDELINES:
+- Include 2-4 relevant links for learning more
+- Use trusted sources: Wikipedia, official documentation, YouTube tutorials, educational sites
+- For programming topics: MDN, W3Schools, GeeksforGeeks, official language docs
+- For academic subjects: Khan Academy, Coursera, educational YouTube channels
+- For college processes: government education portals, university websites
+- Make link titles short and descriptive (e.g., "Python Tutorial", "Learn React", "W3Schools Guide")
+
+${needsImage ? `
 For image_prompt: Create detailed, educational diagrams with labeled components, clean minimal backgrounds, and clear visual hierarchy.
-For links: Provide 2-3 trusted educational resources (official docs, Wikipedia, YouTube tutorials, educational blogs). Avoid ads, affiliate links, or random forums.
+` : ''}
 
 RESPOND ONLY WITH THE JSON OBJECT, NO OTHER TEXT.
-` : ''}
 
 If the user asks to change the language, acknowledge the change and respond in the new language from then on.`;
 
@@ -196,7 +200,7 @@ If the user asks to change the language, acknowledge the change and respond in t
       aiMessage = fallbackMessage;
     }
 
-    // Check if response is JSON (educational with image)
+    // Parse AI response (always try JSON first for links)
     let responseData: {
       message: string;
       source: string;
@@ -207,70 +211,76 @@ If the user asks to change the language, acknowledge the change and respond in t
       source: 'ai'
     };
 
-    // Try to parse as JSON for image+links response
-    if (needsImage) {
-      try {
-        // Clean up the response (remove markdown code blocks if present)
-        let cleanedMessage = aiMessage.trim();
-        if (cleanedMessage.startsWith('```json')) {
-          cleanedMessage = cleanedMessage.slice(7);
-        }
-        if (cleanedMessage.startsWith('```')) {
-          cleanedMessage = cleanedMessage.slice(3);
-        }
-        if (cleanedMessage.endsWith('```')) {
-          cleanedMessage = cleanedMessage.slice(0, -3);
-        }
-        cleanedMessage = cleanedMessage.trim();
-
-        const parsed = JSON.parse(cleanedMessage);
-        
-        if (parsed.type === 'text+image+links' && parsed.image_prompt) {
-          responseData.message = parsed.text;
-          responseData.links = parsed.links || [];
-
-          // Generate the educational image using Lovable AI image model
-          console.log('Generating educational image with prompt:', parsed.image_prompt);
-          
-          try {
-            const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'google/gemini-2.5-flash-image',
-                messages: [
-                  {
-                    role: 'user',
-                    content: `Generate an educational diagram: ${parsed.image_prompt}. Make it clean, professional, with labeled components suitable for college students.`
-                  }
-                ],
-                modalities: ['image', 'text']
-              }),
-            });
-
-            if (imageResponse.ok) {
-              const imageData = await imageResponse.json();
-              const generatedImageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-              
-              if (generatedImageUrl) {
-                responseData.generated_image = generatedImageUrl;
-                console.log('Educational image generated successfully');
-              }
-            } else {
-              console.error('Image generation failed:', await imageResponse.text());
-            }
-          } catch (imgError) {
-            console.error('Error generating image:', imgError);
-            // Continue without image - text response is still valid
-          }
-        }
-      } catch (parseError) {
-        console.log('Response is not JSON, using as plain text:', parseError);
-        // Response is not JSON, use as-is
+    // Always try to parse as JSON for links (AI is instructed to always return JSON)
+    try {
+      // Clean up the response (remove markdown code blocks if present)
+      let cleanedMessage = aiMessage.trim();
+      if (cleanedMessage.startsWith('```json')) {
+        cleanedMessage = cleanedMessage.slice(7);
       }
+      if (cleanedMessage.startsWith('```')) {
+        cleanedMessage = cleanedMessage.slice(3);
+      }
+      if (cleanedMessage.endsWith('```')) {
+        cleanedMessage = cleanedMessage.slice(0, -3);
+      }
+      cleanedMessage = cleanedMessage.trim();
+
+      const parsed = JSON.parse(cleanedMessage);
+      
+      // Extract text and links from JSON response
+      if (parsed.text) {
+        responseData.message = parsed.text;
+      }
+      if (parsed.links && Array.isArray(parsed.links)) {
+        // Validate and clean links
+        responseData.links = parsed.links
+          .filter((link: any) => link.title && link.url && link.url.startsWith('http'))
+          .slice(0, 5); // Max 5 links
+      }
+
+      // Generate image if requested
+      if (needsImage && parsed.image_prompt) {
+        console.log('Generating educational image with prompt:', parsed.image_prompt);
+        
+        try {
+          const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash-image',
+              messages: [
+                {
+                  role: 'user',
+                  content: `Generate an educational diagram: ${parsed.image_prompt}. Make it clean, professional, with labeled components suitable for college students.`
+                }
+              ],
+              modalities: ['image', 'text']
+            }),
+          });
+
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            const generatedImageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+            
+            if (generatedImageUrl) {
+              responseData.generated_image = generatedImageUrl;
+              console.log('Educational image generated successfully');
+            }
+          } else {
+            console.error('Image generation failed:', await imageResponse.text());
+          }
+        } catch (imgError) {
+          console.error('Error generating image:', imgError);
+          // Continue without image - text response is still valid
+        }
+      }
+    } catch (parseError) {
+      console.log('Response is not JSON, using as plain text');
+      // Response is not JSON, use as-is (no links in this case)
     }
 
     return new Response(
