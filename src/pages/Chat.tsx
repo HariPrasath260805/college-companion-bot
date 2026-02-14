@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessages } from '@/components/chat/ChatMessages';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
@@ -33,6 +35,7 @@ export interface Conversation {
 }
 
 const Chat = () => {
+  const isOnline = useOnlineStatus();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -292,12 +295,21 @@ const Chat = () => {
     setIsLoading(true);
 
     // Save user message to database
-    await supabase.from('messages').insert({
+    const { error: userMsgError } = await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'user',
       content,
       image_url: imageUrl,
     });
+
+    if (userMsgError) {
+      console.error('Error saving user message:', userMsgError);
+      toast({
+        title: 'Error',
+        description: 'Failed to save message. Please check your connection.',
+        variant: 'destructive',
+      });
+    }
 
     // Update conversation title if first message
     if (messages.length === 0) {
@@ -313,149 +325,196 @@ const Chat = () => {
       setCurrentConversation({ ...conversation, title });
     }
 
-    // Search for answer in database with structured matching
-    const { data: questions } = await supabase
-      .from('questions')
-      .select('*');
-
     let botResponse: string;
     let botImageUrl: string | null = null;
     let botLinks: MessageLink[] | null = null;
     let source: string;
     
-    const contentLower = content.toLowerCase().trim();
+    // IMPORTANT: Skip database check if user uploaded an image - go directly to AI
+    const hasImage = !!imageUrl;
     
-    // Define known entities for extraction
-    const knownCourses = [
-      'bcom', 'b.com', 'bca', 'bba', 'bsc', 'b.sc', 'ba', 'b.a',
-      'mcom', 'm.com', 'mca', 'mba', 'msc', 'm.sc', 'ma', 'm.a',
-      'cse', 'ece', 'eee', 'mech', 'civil', 'it', 'aids', 'aiml',
-      'computer science', 'electronics', 'electrical', 'mechanical',
-      'commerce', 'arts', 'science', 'engineering', 'management',
-      'pgdca', 'diploma', 'phd', 'pg', 'ug'
-    ];
+    // Normalize text for comparison - remove filler words and punctuation
+    const normalize = (text: string) => 
+      text.toLowerCase()
+        .replace(/[?.,!'"]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
     
-    const knownTopics = [
-      'fees', 'fee structure', 'fee details', 'tuition',
-      'admission', 'admissions', 'eligibility', 'entrance', 'apply',
-      'exam', 'examination', 'schedule', 'timetable', 'syllabus',
-      'hostel', 'accommodation', 'rooms', 'mess',
-      'placement', 'placements', 'job', 'career', 'internship',
-      'scholarship', 'scholarships', 'financial aid',
-      'faculty', 'teachers', 'professors', 'staff',
-      'library', 'lab', 'laboratory', 'facilities',
-      'events', 'fest', 'cultural', 'sports',
-      'transport', 'bus', 'shuttle'
-    ];
+    // ACTION WORDS that indicate user wants specific info (not just explanation)
+    const actionWords = ['fee', 'fees', 'cost', 'price', 'admission', 'result', 'results', 'exam', 'exams', 
+      'schedule', 'timing', 'deadline', 'date', 'contact', 'phone', 'email', 'address', 'hostel', 
+      'placement', 'syllabus', 'eligibility', 'documents', 'required', 'process', 'apply', 'registration'];
     
-    // Generic words to avoid matching alone
-    const genericWords = ['fees', 'admission', 'course', 'exam', 'hostel', 'placement', 'details', 'information', 'about', 'what', 'how', 'when', 'where', 'tell', 'me'];
+    // Extract key terms (remove common filler words)
+    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you', 'about', 'explain', 'give', 'details'];
     
-    // Extract course/entity from user input
-    const extractedCourse = knownCourses.find(course => 
-      contentLower.includes(course.toLowerCase())
-    );
-    
-    // Extract topic from user input
-    const extractedTopic = knownTopics.find(topic => 
-      contentLower.includes(topic.toLowerCase())
-    );
-    
-    // Score-based matching function
-    const scoreMatch = (question: { question_en: string; category?: string | null; keywords?: string[] | null }) => {
-      const questionLower = question.question_en.toLowerCase();
-      const category = question.category?.toLowerCase() || '';
-      const keywords = question.keywords?.map(k => k.toLowerCase()) || [];
-      
-      let score = 0;
-      
-      // Check for course match (high weight)
-      if (extractedCourse) {
-        if (questionLower.includes(extractedCourse) || 
-            keywords.some(k => k.includes(extractedCourse))) {
-          score += 50;
-        }
-      }
-      
-      // Check for topic match (high weight)
-      if (extractedTopic) {
-        if (questionLower.includes(extractedTopic) || 
-            category.includes(extractedTopic) ||
-            keywords.some(k => k.includes(extractedTopic))) {
-          score += 40;
-        }
-      }
-      
-      // Check for longer phrase matches (prefer specific matches)
-      const userWords = contentLower.split(/\s+/).filter(w => 
-        w.length > 2 && !genericWords.includes(w)
-      );
-      
-      // Consecutive word matching (phrase matching)
-      for (let len = Math.min(5, userWords.length); len >= 2; len--) {
-        for (let i = 0; i <= userWords.length - len; i++) {
-          const phrase = userWords.slice(i, i + len).join(' ');
-          if (questionLower.includes(phrase)) {
-            score += len * 10; // Longer phrases get higher scores
-          }
-        }
-      }
-      
-      // Individual significant word matches (lower weight)
-      userWords.forEach(word => {
-        if (questionLower.includes(word)) {
-          score += 5;
-        }
-        if (keywords.some(k => k.includes(word))) {
-          score += 3;
-        }
-      });
-      
-      return score;
+    const extractKeyTerms = (text: string) => {
+      return normalize(text)
+        .split(' ')
+        .filter(w => w.length > 1 && !fillerWords.includes(w));
     };
     
-    // Score all questions
-    const scoredQuestions = questions?.map(q => ({
-      ...q,
-      score: scoreMatch(q)
-    })).filter(q => q.score > 0) || [];
+    const normalizedInput = normalize(content);
+    const inputTerms = extractKeyTerms(content);
     
-    // Sort by score descending
-    scoredQuestions.sort((a, b) => b.score - a.score);
+    // Check if query has ACTION words (fees, admission, etc.) - these should check database
+    const hasActionWord = inputTerms.some(term => actionWords.includes(term));
     
-    // Determine if we have a confident match
-    const topMatch = scoredQuestions[0];
-    const secondMatch = scoredQuestions[1];
+    // Check if query is ONLY a subject/topic with no action word - should go to AI for explanation
+    const isExplanationQuery = !hasActionWord && inputTerms.length >= 1;
     
-    // Conditions for using database answer:
-    // 1. Must have both course AND topic extracted and matched (score >= 90)
-    // 2. OR must have very high confidence single match with significant lead
-    // 3. Must not have multiple equally-good matches
+    // Check if query is too vague (single common word only)
+    const singleCommonWords = ['fee', 'fees', 'exam', 'result', 'admission', 'course', 'hostel'];
+    const isVagueQuery = inputTerms.length === 1 && singleCommonWords.includes(inputTerms[0]);
     
-    const hasConfidentMatch = topMatch && (
-      // High score with course + topic
-      (topMatch.score >= 90 && extractedCourse && extractedTopic) ||
-      // Very high score with significant lead over second match
-      (topMatch.score >= 80 && (!secondMatch || topMatch.score - secondMatch.score >= 30))
-    );
+    // Smart matching function
+    const findBestMatch = async () => {
+      // Skip database for images
+      if (hasImage) return null;
+      
+      // Skip database for pure explanation queries (no action words)
+      // e.g., "computer science" should go to AI to explain, not match "computer science fees"
+      if (isExplanationQuery) {
+        console.log('Explanation query detected, skipping database:', inputTerms);
+        return null;
+      }
+      
+      // For vague queries, still try to find matches but require higher confidence
+      const { data: questions } = await supabase
+        .from('questions')
+        .select('*');
+      
+      if (!questions || questions.length === 0) return null;
+      
+    // Score each question
+        const scored = questions.map(q => {
+          const questionText = normalize(q.question_en);
+          const questionTerms = extractKeyTerms(q.question_en);
+          const category = q.category?.toLowerCase() || '';
+          const keywords = q.keywords?.map((k: string) => k.toLowerCase().trim()) || [];
+          
+          let score = 0;
+          let matchReason = '';
+          
+          // 1. Exact normalized match against main question (100%)
+          if (normalizedInput === questionText) {
+            score = 100;
+            matchReason = 'exact';
+          }
+          
+          // 2. Exact match against any keyword PHRASE (keywords are alternative full questions)
+          // e.g., keywords: ["gasc image", "government arts and science college image"]
+          if (score === 0 && keywords.length > 0) {
+            for (const keyword of keywords) {
+              const normalizedKeyword = normalize(keyword);
+              if (normalizedInput === normalizedKeyword) {
+                score = 98;
+                matchReason = 'keyword-phrase-exact';
+                break;
+              }
+            }
+          }
+          
+          // 3. Term-based match against keywords as phrases
+          // Check if all input terms appear in any single keyword phrase
+          if (score === 0 && keywords.length > 0) {
+            for (const keyword of keywords) {
+              const keywordTerms = extractKeyTerms(keyword);
+              const matchedCount = inputTerms.filter(t => keywordTerms.includes(t)).length;
+              if (matchedCount === inputTerms.length && inputTerms.length >= 1) {
+                score = 92;
+                matchReason = 'keyword-phrase-terms';
+                break;
+              }
+              // Also check reverse: all keyword terms in input
+              const reverseCount = keywordTerms.filter(t => inputTerms.includes(t)).length;
+              if (reverseCount === keywordTerms.length && keywordTerms.length >= 2) {
+                score = 90;
+                matchReason = 'keyword-phrase-reverse';
+                break;
+              }
+            }
+          }
+          
+          // 4. Term match against main question - require both subject AND action word
+          if (score === 0 && inputTerms.length >= 1) {
+            const matchedTerms = inputTerms.filter(term => 
+              questionTerms.some(qt => qt === term)
+            );
+            
+            const inputActionWords = inputTerms.filter(t => actionWords.includes(t));
+            const questionActionWords = questionTerms.filter(t => actionWords.includes(t));
+            const actionWordMatch = inputActionWords.length > 0 && 
+              inputActionWords.some(iaw => questionActionWords.includes(iaw));
+            
+            const inputSubjectWords = inputTerms.filter(t => !actionWords.includes(t));
+            const questionSubjectWords = questionTerms.filter(t => !actionWords.includes(t));
+            const subjectMatchCount = inputSubjectWords.filter(isw => 
+              questionSubjectWords.includes(isw)
+            ).length;
+            const subjectMatchRatio = inputSubjectWords.length > 0 
+              ? subjectMatchCount / inputSubjectWords.length 
+              : 0;
+            
+            if (actionWordMatch && subjectMatchRatio >= 0.5) {
+              score = 85 + (subjectMatchRatio * 10);
+              matchReason = 'subject-action-match';
+            } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
+              score = 90;
+              matchReason = 'all-terms-match';
+            }
+          }
+          
+          // 5. Category + term combination
+          if (score === 0 && category) {
+            const categoryMatch = inputTerms.some(t => category === t);
+            const hasOtherMatch = inputTerms.some(t => 
+              questionTerms.some(qt => qt === t)
+            );
+            if (categoryMatch && hasOtherMatch) {
+              score = 72;
+              matchReason = 'category-term';
+            }
+          }
+          
+          return { ...q, score, matchReason };
+        });
+      
+      // Filter and sort
+      const CONFIDENCE_THRESHOLD = isVagueQuery ? 85 : 70;
+      const matches = scored
+        .filter(q => q.score >= CONFIDENCE_THRESHOLD)
+        .sort((a, b) => b.score - a.score);
+      
+      if (matches.length === 0) return null;
+      
+      // Return best match or ambiguous if multiple close scores
+      const topScore = matches[0].score;
+      const topMatches = matches.filter(m => m.score >= topScore - 5);
+      
+      if (topMatches.length > 1 && topScore < 90) {
+        return { ambiguous: true, matches: topMatches.slice(0, 3) };
+      }
+      
+      return { ambiguous: false, match: matches[0] };
+    };
     
-    const hasAmbiguousMatches = topMatch && secondMatch && 
-      topMatch.score === secondMatch.score && topMatch.score > 0;
-
-    if (hasConfidentMatch && !hasAmbiguousMatches) {
-      // Confident database match - include image if present
-      botResponse = topMatch.answer_en;
-      botImageUrl = topMatch.image_url || null;
+    const matchResult = await findBestMatch();
+    
+    if (matchResult && !matchResult.ambiguous && matchResult.match) {
+      // Confident database match (70%+ confidence)
+      botResponse = matchResult.match.answer_en;
+      botImageUrl = matchResult.match.image_url || null;
       source = 'database';
-    } else if (hasAmbiguousMatches && scoredQuestions.length <= 3) {
+    } else if (matchResult && matchResult.ambiguous && matchResult.matches) {
       // Multiple matches - ask for clarification
-      const options = scoredQuestions.slice(0, 3).map((q, i) => 
+      const options = matchResult.matches.map((q: any, i: number) => 
         `${i + 1}. ${q.question_en}`
       ).join('\n');
-      botResponse = `I found multiple possible answers. Could you please clarify which one you're asking about?\n\n${options}\n\nOr you can rephrase your question with more specific details (e.g., course name + topic like "BCA fees" or "CSE admission").`;
+      botResponse = `I found multiple possible answers. Could you please clarify which one you are asking about?\n\n${options}\n\nPlease provide more specific details.`;
       source = 'database';
     } else {
-      // AI fallback - handles both simple responses and image generation
+      // No database match OR image input - use AI
       try {
         const allMessages = [...messages, { role: 'user', content, image_url: imageUrl }];
         const response = await supabase.functions.invoke('chat', {
@@ -473,7 +532,7 @@ const Chat = () => {
           throw new Error(response.error.message);
         }
 
-        botResponse = response.data?.message || 'I apologize, I could not generate a response.';
+        botResponse = response.data?.message || "I don't have exact information for this. Could you please clarify your question?";
         source = 'ai';
         
         // Handle AI-generated image
@@ -487,7 +546,7 @@ const Chat = () => {
         }
       } catch (error) {
         console.error('AI error:', error);
-        botResponse = 'I apologize, but I encountered an error. Please try again.';
+        botResponse = "I don't have exact information for this. Could you please clarify your question?";
         source = 'ai';
       }
     }
@@ -506,20 +565,49 @@ const Chat = () => {
     setMessages(prev => [...prev, botMessage]);
     setIsLoading(false);
 
-    // Save bot message to database (links stored in content or separate handling)
-    await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      role: 'assistant',
-      content: botResponse,
-      image_url: botImageUrl,
-      source,
-    });
+    // Save bot message to database with error handling
+    try {
+      const { error: botMsgError } = await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: botResponse,
+        image_url: botImageUrl,
+        source,
+      });
 
-    // Update conversation timestamp
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversation.id);
+      if (botMsgError) {
+        console.error('Error saving bot message:', botMsgError);
+      }
+
+      // Update conversation timestamp
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+
+      // Direct refetch to ensure consistency on slow networks
+      // Preserve links from optimistic state (not stored in DB)
+      const currentMessages = [...messages, userMessage, botMessage];
+      const { data: dbMessages } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: true });
+      
+      if (dbMessages) {
+        setMessages(dbMessages.map(m => {
+          const optimistic = currentMessages.find(om => om.content === m.content && om.role === m.role);
+          return {
+            ...m,
+            role: m.role as 'user' | 'assistant',
+            links: optimistic?.links || null,
+          };
+        }));
+      }
+    } catch (saveError) {
+      console.error('Error saving messages:', saveError);
+      // Messages are still shown optimistically even if save fails
+    }
   };
 
   if (authLoading) {
@@ -531,7 +619,9 @@ const Chat = () => {
   }
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex flex-col bg-background">
+      {!isOnline && <OfflineBanner />}
+      <div className="flex-1 flex min-h-0">
       {/* Mobile sidebar toggle */}
       <Button
         variant="ghost"
@@ -573,6 +663,7 @@ const Chat = () => {
           isLoading={isLoading}
         />
       </div>
+    </div>
     </div>
   );
 };
