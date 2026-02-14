@@ -118,16 +118,19 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
                 <p className="text-xs font-medium text-muted-foreground mb-2">📚 Learn more:</p>
                 <div className="flex flex-wrap gap-2">
                   {message.links.map((link, idx) => (
-                    <a
+                    <button
                       key={idx}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(link.url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors cursor-pointer"
                     >
                       {link.title}
                       <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>

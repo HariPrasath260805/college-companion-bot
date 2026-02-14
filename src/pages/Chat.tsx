@@ -292,12 +292,21 @@ const Chat = () => {
     setIsLoading(true);
 
     // Save user message to database
-    await supabase.from('messages').insert({
+    const { error: userMsgError } = await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'user',
       content,
       image_url: imageUrl,
     });
+
+    if (userMsgError) {
+      console.error('Error saving user message:', userMsgError);
+      toast({
+        title: 'Error',
+        description: 'Failed to save message. Please check your connection.',
+        variant: 'destructive',
+      });
+    }
 
     // Update conversation title if first message
     if (messages.length === 0) {
@@ -553,20 +562,32 @@ const Chat = () => {
     setMessages(prev => [...prev, botMessage]);
     setIsLoading(false);
 
-    // Save bot message to database (links stored in content or separate handling)
-    await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      role: 'assistant',
-      content: botResponse,
-      image_url: botImageUrl,
-      source,
-    });
+    // Save bot message to database with error handling
+    try {
+      const { error: botMsgError } = await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: botResponse,
+        image_url: botImageUrl,
+        source,
+      });
 
-    // Update conversation timestamp
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversation.id);
+      if (botMsgError) {
+        console.error('Error saving bot message:', botMsgError);
+      }
+
+      // Update conversation timestamp
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+
+      // Direct refetch to ensure consistency on slow networks
+      await loadMessages(conversation.id);
+    } catch (saveError) {
+      console.error('Error saving messages:', saveError);
+      // Messages are still shown optimistically even if save fails
+    }
   };
 
   if (authLoading) {
