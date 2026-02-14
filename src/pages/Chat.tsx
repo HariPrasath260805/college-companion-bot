@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessages } from '@/components/chat/ChatMessages';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
@@ -33,6 +35,7 @@ export interface Conversation {
 }
 
 const Chat = () => {
+  const isOnline = useOnlineStatus();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -583,7 +586,24 @@ const Chat = () => {
         .eq('id', conversation.id);
 
       // Direct refetch to ensure consistency on slow networks
-      await loadMessages(conversation.id);
+      // Preserve links from optimistic state (not stored in DB)
+      const currentMessages = [...messages, userMessage, botMessage];
+      const { data: dbMessages } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: true });
+      
+      if (dbMessages) {
+        setMessages(dbMessages.map(m => {
+          const optimistic = currentMessages.find(om => om.content === m.content && om.role === m.role);
+          return {
+            ...m,
+            role: m.role as 'user' | 'assistant',
+            links: optimistic?.links || null,
+          };
+        }));
+      }
     } catch (saveError) {
       console.error('Error saving messages:', saveError);
       // Messages are still shown optimistically even if save fails
@@ -599,7 +619,9 @@ const Chat = () => {
   }
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex flex-col bg-background">
+      {!isOnline && <OfflineBanner />}
+      <div className="flex-1 flex min-h-0">
       {/* Mobile sidebar toggle */}
       <Button
         variant="ghost"
@@ -641,6 +663,7 @@ const Chat = () => {
           isLoading={isLoading}
         />
       </div>
+    </div>
     </div>
   );
 };
