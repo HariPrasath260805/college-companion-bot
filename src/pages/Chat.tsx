@@ -374,86 +374,99 @@ const Chat = () => {
       
       if (!questions || questions.length === 0) return null;
       
-      // Score each question
-      const scored = questions.map(q => {
-        const questionText = normalize(q.question_en);
-        const questionTerms = extractKeyTerms(q.question_en);
-        const answerTerms = extractKeyTerms(q.answer_en);
-        const category = q.category?.toLowerCase() || '';
-        const keywords = q.keywords?.map((k: string) => k.toLowerCase()) || [];
-        
-        let score = 0;
-        let matchReason = '';
-        
-        // 1. Exact normalized match (100%)
-        if (normalizedInput === questionText) {
-          score = 100;
-          matchReason = 'exact';
-        }
-        
-        // 2. Check if input terms match question terms (EXACT FULL WORD only)
-        // CRITICAL: Both subject AND action word must match
-        // e.g., "computer science fees" must match question with both "computer science" AND "fees"
-        if (score === 0 && inputTerms.length >= 1) {
-          const matchedTerms = inputTerms.filter(term => 
-            // Only match if the FULL word matches exactly
-            questionTerms.some(qt => qt === term)
-          );
+    // Score each question
+        const scored = questions.map(q => {
+          const questionText = normalize(q.question_en);
+          const questionTerms = extractKeyTerms(q.question_en);
+          const category = q.category?.toLowerCase() || '';
+          const keywords = q.keywords?.map((k: string) => k.toLowerCase().trim()) || [];
           
-          // Check if question has the action word from input
-          const inputActionWords = inputTerms.filter(t => actionWords.includes(t));
-          const questionActionWords = questionTerms.filter(t => actionWords.includes(t));
-          const actionWordMatch = inputActionWords.length > 0 && 
-            inputActionWords.some(iaw => questionActionWords.includes(iaw));
+          let score = 0;
+          let matchReason = '';
           
-          // Check subject words (non-action words) match
-          const inputSubjectWords = inputTerms.filter(t => !actionWords.includes(t));
-          const questionSubjectWords = questionTerms.filter(t => !actionWords.includes(t));
-          const subjectMatchCount = inputSubjectWords.filter(isw => 
-            questionSubjectWords.includes(isw)
-          ).length;
-          const subjectMatchRatio = inputSubjectWords.length > 0 
-            ? subjectMatchCount / inputSubjectWords.length 
-            : 0;
+          // 1. Exact normalized match against main question (100%)
+          if (normalizedInput === questionText) {
+            score = 100;
+            matchReason = 'exact';
+          }
           
-          // High score only if BOTH action word AND subject match
-          if (actionWordMatch && subjectMatchRatio >= 0.5) {
-            score = 85 + (subjectMatchRatio * 10);
-            matchReason = 'subject-action-match';
-          } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
-            // All terms match exactly
-            score = 90;
-            matchReason = 'all-terms-match';
+          // 2. Exact match against any keyword PHRASE (keywords are alternative full questions)
+          // e.g., keywords: ["gasc image", "government arts and science college image"]
+          if (score === 0 && keywords.length > 0) {
+            for (const keyword of keywords) {
+              const normalizedKeyword = normalize(keyword);
+              if (normalizedInput === normalizedKeyword) {
+                score = 98;
+                matchReason = 'keyword-phrase-exact';
+                break;
+              }
+            }
           }
-        }
-        
-        // 3. Keyword array match - FULL WORD matching only
-        if (score === 0 && keywords.length > 0) {
-          const keywordMatches = keywords.filter((k: string) => 
-            // Only exact full word matches
-            inputTerms.some(term => k === term)
-          );
-          if (keywordMatches.length >= 1) {
-            score = 75 + (keywordMatches.length * 5);
-            matchReason = 'keywords';
+          
+          // 3. Term-based match against keywords as phrases
+          // Check if all input terms appear in any single keyword phrase
+          if (score === 0 && keywords.length > 0) {
+            for (const keyword of keywords) {
+              const keywordTerms = extractKeyTerms(keyword);
+              const matchedCount = inputTerms.filter(t => keywordTerms.includes(t)).length;
+              if (matchedCount === inputTerms.length && inputTerms.length >= 1) {
+                score = 92;
+                matchReason = 'keyword-phrase-terms';
+                break;
+              }
+              // Also check reverse: all keyword terms in input
+              const reverseCount = keywordTerms.filter(t => inputTerms.includes(t)).length;
+              if (reverseCount === keywordTerms.length && keywordTerms.length >= 2) {
+                score = 90;
+                matchReason = 'keyword-phrase-reverse';
+                break;
+              }
+            }
           }
-        }
-        
-        // 4. Category + term combination - FULL WORD matching only
-        if (score === 0 && category) {
-          const categoryMatch = inputTerms.some(t => category === t);
-          const hasOtherMatch = inputTerms.some(t => 
-            // Only exact full word matches
-            questionTerms.some(qt => qt === t)
-          );
-          if (categoryMatch && hasOtherMatch) {
-            score = 72;
-            matchReason = 'category-term';
+          
+          // 4. Term match against main question - require both subject AND action word
+          if (score === 0 && inputTerms.length >= 1) {
+            const matchedTerms = inputTerms.filter(term => 
+              questionTerms.some(qt => qt === term)
+            );
+            
+            const inputActionWords = inputTerms.filter(t => actionWords.includes(t));
+            const questionActionWords = questionTerms.filter(t => actionWords.includes(t));
+            const actionWordMatch = inputActionWords.length > 0 && 
+              inputActionWords.some(iaw => questionActionWords.includes(iaw));
+            
+            const inputSubjectWords = inputTerms.filter(t => !actionWords.includes(t));
+            const questionSubjectWords = questionTerms.filter(t => !actionWords.includes(t));
+            const subjectMatchCount = inputSubjectWords.filter(isw => 
+              questionSubjectWords.includes(isw)
+            ).length;
+            const subjectMatchRatio = inputSubjectWords.length > 0 
+              ? subjectMatchCount / inputSubjectWords.length 
+              : 0;
+            
+            if (actionWordMatch && subjectMatchRatio >= 0.5) {
+              score = 85 + (subjectMatchRatio * 10);
+              matchReason = 'subject-action-match';
+            } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
+              score = 90;
+              matchReason = 'all-terms-match';
+            }
           }
-        }
-        
-        return { ...q, score, matchReason };
-      });
+          
+          // 5. Category + term combination
+          if (score === 0 && category) {
+            const categoryMatch = inputTerms.some(t => category === t);
+            const hasOtherMatch = inputTerms.some(t => 
+              questionTerms.some(qt => qt === t)
+            );
+            if (categoryMatch && hasOtherMatch) {
+              score = 72;
+              matchReason = 'category-term';
+            }
+          }
+          
+          return { ...q, score, matchReason };
+        });
       
       // Filter and sort
       const CONFIDENCE_THRESHOLD = isVagueQuery ? 85 : 70;
