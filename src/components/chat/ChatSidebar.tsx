@@ -14,6 +14,7 @@ import {
   GraduationCap,
   X,
   AlertCircle,
+  Shield,
 } from 'lucide-react';
 import { Conversation } from '@/pages/Chat';
 import {
@@ -49,7 +50,7 @@ export function ChatSidebar({
   isOpen,
   onClose,
 }: ChatSidebarProps) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
 
@@ -212,6 +213,13 @@ export function ChatSidebar({
             </Link>
             <div className="flex items-center gap-1">
               <ThemeToggle />
+              {isAdmin && (
+                <Link to="/admin">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Shield className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
               <Button 
                 variant="ghost" 
                 size="icon"
