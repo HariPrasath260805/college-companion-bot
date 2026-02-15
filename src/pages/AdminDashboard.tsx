@@ -93,7 +93,7 @@ const AdminDashboard = () => {
           description: 'You do not have admin privileges.',
           variant: 'destructive',
         });
-        navigate('/');
+        navigate('/chat');
       }
     }
   }, [user, isAdmin, authLoading, navigate, toast]);
@@ -251,7 +251,7 @@ const AdminDashboard = () => {
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/chat" className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
                 <GraduationCap className="w-6 h-6 text-primary-foreground" />
               </div>

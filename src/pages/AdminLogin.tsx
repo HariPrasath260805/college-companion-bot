@@ -81,9 +81,9 @@ const AdminLogin = () => {
 
       {/* Header */}
       <div className="absolute top-6 left-6 right-6 flex items-center justify-between z-10">
-        <Link to="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/chat" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Home</span>
+          <span>Back to Chat</span>
         </Link>
         <ThemeToggle />
       </div>
