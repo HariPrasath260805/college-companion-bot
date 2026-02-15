@@ -218,6 +218,14 @@ const Profile = () => {
 
       if (error) throw error;
 
+      // Update auth user metadata so it reflects immediately
+      await supabase.auth.updateUser({
+        data: { full_name: fullName }
+      });
+
+      // Dispatch custom event so other components (like sidebar) can refresh
+      window.dispatchEvent(new CustomEvent('profile-updated', { detail: { fullName, avatarUrl } }));
+
       toast({
         title: 'Profile updated',
         description: 'Your profile has been saved successfully',

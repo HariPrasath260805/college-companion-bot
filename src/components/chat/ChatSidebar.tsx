@@ -51,22 +51,35 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const { user, signOut } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('avatar_url, full_name')
+      .eq('id', user.id)
+      .single();
+    if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+    if (data?.full_name) setDisplayName(data.full_name);
+  };
 
   useEffect(() => {
-    const fetchAvatar = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', user.id)
-        .single();
-      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-    };
-    fetchAvatar();
+    fetchProfile();
   }, [user]);
 
+  // Listen for profile updates from the Profile page
+  useEffect(() => {
+    const handleProfileUpdate = (e: CustomEvent<{ fullName: string; avatarUrl: string | null }>) => {
+      setDisplayName(e.detail.fullName);
+      setAvatarUrl(e.detail.avatarUrl);
+    };
+    window.addEventListener('profile-updated', handleProfileUpdate as EventListener);
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate as EventListener);
+  }, []);
+
   const getInitials = () => {
-    const name = user?.user_metadata?.full_name || user?.email;
+    const name = displayName || user?.user_metadata?.full_name || user?.email;
     if (name) return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
     return 'U';
   };
@@ -194,7 +207,7 @@ export function ChatSidebar({
                 </AvatarFallback>
               </Avatar>
               <span className="text-sm font-medium truncate max-w-[100px]">
-                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                {displayName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
               </span>
             </Link>
             <div className="flex items-center gap-1">
