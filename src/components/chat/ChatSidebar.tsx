@@ -10,7 +10,8 @@ import {
   LogOut, 
   GraduationCap,
   X,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 import { Conversation } from '@/pages/Chat';
 import {
@@ -163,7 +164,15 @@ export function ChatSidebar({
           )}
           
           <div className="flex items-center justify-between">
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <Link to="/profile">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <User className="w-4 h-4" />
+                  Profile
+                </Button>
+              </Link>
+            </div>
             <Button 
               variant="ghost" 
               size="sm" 
