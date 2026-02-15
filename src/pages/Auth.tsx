@@ -123,15 +123,15 @@ const Auth = () => {
       <Card className="relative z-10 w-full max-w-md glass-strong animate-slide-up">
         <CardHeader className="text-center pb-2">
           <div className="w-16 h-16 rounded-2xl gradient-bg flex items-center justify-center mx-auto mb-4">
-            <GraduationCap className="w-9 h-9 text-primary-foreground" />
+           <img src='/512.png' className='border border-primary rounded-md'></img>
           </div>
           <CardTitle className="font-display text-2xl">
             {isLogin ? 'Welcome Back' : 'Create Account'}
           </CardTitle>
           <CardDescription>
             {isLogin 
-              ? 'Sign in to continue to College AI'
-              : 'Join College AI to get started'}
+              ? 'Sign in to continue'
+              : 'Join AskGasc to get started'}
           </CardDescription>
         </CardHeader>
 

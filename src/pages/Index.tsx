@@ -77,12 +77,12 @@ const Index = () => {
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between p-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center">
-            <GraduationCap className="w-7 h-7 text-primary-foreground" />
+          <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center ">
+            <img src='/512.png'></img>
           </div>
           <div>
-            <h1 className="font-display text-xl font-bold">College AI</h1>
-            <p className="text-xs text-muted-foreground">Intelligent Assistant</p>
+            <h1 className="font-display text-xl font-bold">AskGasc</h1>
+            <p className="text-xs text-muted-foreground">AI</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -126,23 +126,18 @@ const Index = () => {
           ) : (
             <>
               <Link to="/auth">
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-2 border border-blue-500 hover:bg-primary hover:text-white">
                   <LogIn className="w-4 h-4" />
-                  <span className="hidden sm:inline">Login</span>
+                  <span className="hidden sm:inline">Sign In</span>
                 </Button>
               </Link>
               <Link to="/auth?mode=register">
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-2 bg-blue-500 hover:bg-blue-500/60  hover:text-white">
                   <UserPlus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Register</span>
+                  <span className="hidden sm:inline">Get Started</span>
                 </Button>
               </Link>
-              <Link to="/admin/login">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Shield className="w-4 h-4" />
-                  <span className="hidden sm:inline">Admin</span>
-                </Button>
-              </Link>
+              
             </>
           )}
         </div>
@@ -160,7 +155,7 @@ const Index = () => {
           {/* Main Heading */}
           <h1 className="font-display text-5xl md:text-7xl font-bold mb-6 leading-tight">
             Your Smart
-            <span className="gradient-text block">College Companion</span>
+            <span className="gradient-text block">College Chatbot</span>
           </h1>
 
           {/* Description */}
@@ -180,30 +175,20 @@ const Index = () => {
               </Link>
             ) : (
               <>
-                <Link to="/chat">
-                  <Button size="lg" className="gradient-bg text-primary-foreground gap-2 h-14 px-8 text-lg glow">
-                    <MessageSquare className="w-5 h-5" />
-                    Start Chat
-                  </Button>
-                </Link>
+                
                 <Link to="/auth">
-                  <Button size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg">
-                    <LogIn className="w-5 h-5" />
-                    Login
+                  <Button size="lg" variant="outline" className="gap-2 h-14 px-8 text-lg border-blue-500 glow hover:bg-blue-500">
+          
+                    Start Chatting
                   </Button>
                 </Link>
-                <Link to="/auth?mode=register">
-                  <Button size="lg" variant="ghost" className="gap-2 h-14 px-8 text-lg">
-                    <UserPlus className="w-5 h-5" />
-                    Register
-                  </Button>
-                </Link>
+                
               </>
             )}
           </div>
 
           {/* Features Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6  max-w-4xl mx-auto ">
             <FeatureCard
               icon={<Bot className="w-6 h-6" />}
               title="AI-Powered"
@@ -225,7 +210,7 @@ const Index = () => {
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-6 text-sm text-muted-foreground">
-        <p>© 2024 College AI Chatbot. Built with ❤️ for students.</p>
+        <p>© 2026 College AI Chatbot. Built with ❤️ for students.</p>
       </footer>
     </div>
   );
