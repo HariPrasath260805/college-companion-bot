@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
@@ -9,7 +9,15 @@ import { useState, useEffect } from 'react';
 import { MessageSquare, LogIn, UserPlus, GraduationCap, Sparkles, Bot, Shield, LogOut, User } from 'lucide-react';
 
 const Index = () => {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect logged-in users directly to chat
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/chat', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
 
