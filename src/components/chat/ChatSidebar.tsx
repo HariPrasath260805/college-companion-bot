@@ -2,7 +2,10 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 import { 
   Plus, 
   MessageSquare, 
@@ -11,7 +14,6 @@ import {
   GraduationCap,
   X,
   AlertCircle,
-  User
 } from 'lucide-react';
 import { Conversation } from '@/pages/Chat';
 import {
@@ -47,7 +49,27 @@ export function ChatSidebar({
   isOpen,
   onClose,
 }: ChatSidebarProps) {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+      if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+    };
+    fetchAvatar();
+  }, [user]);
+
+  const getInitials = () => {
+    const name = user?.user_metadata?.full_name || user?.email;
+    if (name) return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+    return 'U';
+  };
 
   return (
     <>
@@ -164,24 +186,28 @@ export function ChatSidebar({
           )}
           
           <div className="flex items-center justify-between">
+            <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Avatar className="w-8 h-8">
+                <AvatarImage src={avatarUrl || undefined} alt="Profile" />
+                <AvatarFallback className="text-xs gradient-bg text-primary-foreground">
+                  {getInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium truncate max-w-[100px]">
+                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+              </span>
+            </Link>
             <div className="flex items-center gap-1">
               <ThemeToggle />
-              <Link to="/profile">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <User className="w-4 h-4" />
-                  Profile
-                </Button>
-              </Link>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={signOut}
+                className="h-8 w-8"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={signOut}
-              className="gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </Button>
           </div>
         </div>
       </aside>
