@@ -345,12 +345,12 @@ const Chat = () => {
       'schedule', 'timing', 'deadline', 'date', 'contact', 'phone', 'email', 'address', 'hostel', 
       'placement', 'syllabus', 'eligibility', 'documents', 'required', 'process', 'apply', 'registration'];
     
-    // CRITICAL TERMS - ordinals/years that MUST match if present in both input and question
+    // CRITICAL TERMS - ordinals that MUST match if present in both input and question
     const criticalTerms = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
-      'i', 'ii', 'iii', 'iv', 'v', 'vi', 'semester', 'year', 'sem'];
+      'i', 'ii', 'iii', 'iv', 'v', 'vi', 'semester'];
     
     // Extract key terms (remove common filler words)
-    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you', 'about', 'explain', 'give', 'details'];
+    const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you', 'about', 'explain', 'give', 'details', 'year', 'sem'];
     
     const extractKeyTerms = (text: string) => {
       return normalize(text)
