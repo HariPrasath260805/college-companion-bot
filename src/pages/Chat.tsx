@@ -440,7 +440,7 @@ const Chat = () => {
             }
           }
           
-          // 4. Term match against main question - require both subject AND action word
+          // 4. Flexible term matching - works regardless of word order or phrasing
           if (score === 0 && inputTerms.length >= 1) {
             const matchedTerms = inputTerms.filter(term => 
               questionTerms.some(qt => qt === term)
@@ -460,24 +460,40 @@ const Chat = () => {
               ? subjectMatchCount / inputSubjectWords.length 
               : 0;
             
+            // Reverse match: how many of the question's subject terms are in the input
+            const reverseSubjectCount = questionSubjectWords.filter(qsw =>
+              inputSubjectWords.includes(qsw)
+            ).length;
+            const reverseSubjectRatio = questionSubjectWords.length > 0
+              ? reverseSubjectCount / questionSubjectWords.length
+              : 0;
+            
             // Check critical terms - if input has ordinals/year terms, they MUST match
             const inputCritical = inputTerms.filter(t => criticalTerms.includes(t));
             const questionCritical = questionTerms.filter(t => criticalTerms.includes(t));
-            const criticalMismatch = inputCritical.length > 0 && (
+            const criticalMismatch = inputCritical.length > 0 && questionCritical.length > 0 && (
               inputCritical.some(ic => !questionCritical.includes(ic)) ||
               questionCritical.some(qc => !inputCritical.includes(qc))
             );
             
             if (criticalMismatch) {
-              // Don't match if critical terms differ (e.g., "2nd" vs "3rd")
               score = 0;
               matchReason = 'critical-mismatch';
-            } else if (actionWordMatch && subjectMatchRatio >= 0.5) {
+            } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
+              // All input terms found in question
+              score = 95;
+              matchReason = 'all-terms-match';
+            } else if (actionWordMatch && reverseSubjectRatio >= 0.8 && subjectMatchRatio >= 0.5) {
+              // All question subject terms are in input + action word matches
+              score = 92;
+              matchReason = 'reverse-full-match';
+            } else if (actionWordMatch && subjectMatchRatio >= 0.7) {
               score = 85 + (subjectMatchRatio * 10);
               matchReason = 'subject-action-match';
-            } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
-              score = 90;
-              matchReason = 'all-terms-match';
+            } else if (actionWordMatch && reverseSubjectRatio >= 0.8) {
+              // Input may have extra words but covers all question terms
+              score = 85;
+              matchReason = 'reverse-subject-action';
             }
           }
           
