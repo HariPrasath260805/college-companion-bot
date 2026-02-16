@@ -15,15 +15,13 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
           {conversation ? conversation.title : 'New Chat'}
         </span>
       </div>
-      <a
-        href="https://maps.app.goo.gl/37fhA8UGasVnyNEP6"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      <button
+        onClick={() => window.open('https://maps.app.goo.gl/37fhA8UGasVnyNEP6', '_blank', 'noopener,noreferrer')}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-none"
         title="College Location"
       >
         📍 <span className="hidden sm:inline">Location</span>
-      </a>
+      </button>
     </header>
   );
 }
