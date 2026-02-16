@@ -345,6 +345,10 @@ const Chat = () => {
       'schedule', 'timing', 'deadline', 'date', 'contact', 'phone', 'email', 'address', 'hostel', 
       'placement', 'syllabus', 'eligibility', 'documents', 'required', 'process', 'apply', 'registration'];
     
+    // CRITICAL TERMS - ordinals/years that MUST match if present in both input and question
+    const criticalTerms = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
+      'i', 'ii', 'iii', 'iv', 'v', 'vi', 'semester', 'year', 'sem'];
+    
     // Extract key terms (remove common filler words)
     const fillerWords = ['what', 'is', 'the', 'of', 'for', 'a', 'an', 'in', 'to', 'and', 'or', 'how', 'much', 'show', 'me', 'tell', 'please', 'can', 'you', 'about', 'explain', 'give', 'details'];
     
@@ -456,7 +460,19 @@ const Chat = () => {
               ? subjectMatchCount / inputSubjectWords.length 
               : 0;
             
-            if (actionWordMatch && subjectMatchRatio >= 0.5) {
+            // Check critical terms - if input has ordinals/year terms, they MUST match
+            const inputCritical = inputTerms.filter(t => criticalTerms.includes(t));
+            const questionCritical = questionTerms.filter(t => criticalTerms.includes(t));
+            const criticalMismatch = inputCritical.length > 0 && (
+              inputCritical.some(ic => !questionCritical.includes(ic)) ||
+              questionCritical.some(qc => !inputCritical.includes(qc))
+            );
+            
+            if (criticalMismatch) {
+              // Don't match if critical terms differ (e.g., "2nd" vs "3rd")
+              score = 0;
+              matchReason = 'critical-mismatch';
+            } else if (actionWordMatch && subjectMatchRatio >= 0.5) {
               score = 85 + (subjectMatchRatio * 10);
               matchReason = 'subject-action-match';
             } else if (matchedTerms.length === inputTerms.length && inputTerms.length >= 2) {
