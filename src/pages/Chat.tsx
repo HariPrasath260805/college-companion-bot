@@ -22,6 +22,8 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   image_url?: string | null;
+  video_url?: string | null;
+  website_url?: string | null;
   source?: string | null;
   links?: MessageLink[] | null;
   created_at: string;
@@ -327,6 +329,8 @@ const Chat = () => {
 
     let botResponse: string;
     let botImageUrl: string | null = null;
+    let botVideoUrl: string | null = null;
+    let botWebsiteUrl: string | null = null;
     let botLinks: MessageLink[] | null = null;
     let source: string;
     
@@ -537,6 +541,8 @@ const Chat = () => {
       // Confident database match (70%+ confidence)
       botResponse = matchResult.match.answer_en;
       botImageUrl = matchResult.match.image_url || null;
+      botVideoUrl = matchResult.match.video_url || null;
+      botWebsiteUrl = matchResult.match.website_url || null;
       source = 'database';
     } else if (matchResult && matchResult.ambiguous && matchResult.matches) {
       // Multiple matches - ask for clarification
@@ -589,6 +595,8 @@ const Chat = () => {
       role: 'assistant',
       content: botResponse,
       image_url: botImageUrl,
+      video_url: botVideoUrl,
+      website_url: botWebsiteUrl,
       links: botLinks,
       source,
       created_at: new Date().toISOString(),

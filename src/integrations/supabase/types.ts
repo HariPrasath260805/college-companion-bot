@@ -117,6 +117,8 @@ export type Database = {
           keywords: string[] | null
           question_en: string
           updated_at: string
+          video_url: string | null
+          website_url: string | null
         }
         Insert: {
           answer_en: string
@@ -128,6 +130,8 @@ export type Database = {
           keywords?: string[] | null
           question_en: string
           updated_at?: string
+          video_url?: string | null
+          website_url?: string | null
         }
         Update: {
           answer_en?: string
@@ -139,6 +143,8 @@ export type Database = {
           keywords?: string[] | null
           question_en?: string
           updated_at?: string
+          video_url?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }

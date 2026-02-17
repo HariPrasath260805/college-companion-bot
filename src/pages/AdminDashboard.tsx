@@ -9,34 +9,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
-  Plus, 
-  Pencil, 
-  Trash2, 
-  Search, 
-  LogOut, 
-  Shield,
-  MessageSquare,
-  HelpCircle,
-  Image,
-  Loader2,
-  Save,
-  X,
-  GraduationCap
+  Plus, Pencil, Trash2, Search, Shield, MessageSquare,
+  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Link } from 'react-router-dom';
 
@@ -46,20 +26,21 @@ interface Question {
   answer_en: string;
   category: string | null;
   image_url: string | null;
+  video_url: string | null;
+  website_url: string | null;
+  created_at: string;
+}
+
+interface UserProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
   created_at: string;
 }
 
 const CATEGORIES = [
-  'general',
-  'admissions',
-  'courses',
-  'fees',
-  'exams',
-  'facilities',
-  'placement',
-  'hostel',
-  'events',
-  'other'
+  'general', 'admissions', 'courses', 'fees', 'exams',
+  'facilities', 'placement', 'hostel', 'events', 'other'
 ];
 
 const AdminDashboard = () => {
@@ -71,12 +52,15 @@ const AdminDashboard = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>([]);
   
   // Form state
   const [formQuestion, setFormQuestion] = useState('');
   const [formAnswer, setFormAnswer] = useState('');
   const [formCategory, setFormCategory] = useState('general');
   const [formImageUrl, setFormImageUrl] = useState('');
+  const [formVideoUrl, setFormVideoUrl] = useState('');
+  const [formWebsiteUrl, setFormWebsiteUrl] = useState('');
 
   const navigate = useNavigate();
   const { user, isAdmin, isLoading: authLoading, signOut } = useAuth();
@@ -88,68 +72,52 @@ const AdminDashboard = () => {
       if (!user) {
         navigate('/admin/login');
       } else if (!isAdmin) {
-        toast({
-          title: 'Access Denied',
-          description: 'You do not have admin privileges.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Access Denied', description: 'You do not have admin privileges.', variant: 'destructive' });
         navigate('/chat');
       }
     }
   }, [user, isAdmin, authLoading, navigate, toast]);
 
-  // Load questions
   useEffect(() => {
     if (isAdmin) {
       loadQuestions();
+      loadUsers();
     }
   }, [isAdmin]);
 
   // Filter questions
   useEffect(() => {
     let filtered = questions;
-
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(q => 
-        q.question_en.toLowerCase().includes(query) ||
-        q.answer_en.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(q => q.question_en.toLowerCase().includes(query) || q.answer_en.toLowerCase().includes(query));
     }
-
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(q => q.category === selectedCategory);
     }
-
     setFilteredQuestions(filtered);
   }, [questions, searchQuery, selectedCategory]);
 
   const loadQuestions = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('questions')
-      .select('*')
-      .order('created_at', { ascending: false });
-
+    const { data, error } = await supabase.from('questions').select('*').order('created_at', { ascending: false });
     if (error) {
-      console.error('Error loading questions:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load questions',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to load questions', variant: 'destructive' });
     } else {
       setQuestions(data || []);
     }
     setIsLoading(false);
   };
 
+  const loadUsers = async () => {
+    const { data, error } = await supabase.from('profiles').select('id, full_name, email, created_at').order('created_at', { ascending: false });
+    if (!error && data) setRegisteredUsers(data);
+  };
+
   const openAddDialog = () => {
     setEditingQuestion(null);
-    setFormQuestion('');
-    setFormAnswer('');
-    setFormCategory('general');
-    setFormImageUrl('');
+    setFormQuestion(''); setFormAnswer(''); setFormCategory('general');
+    setFormImageUrl(''); setFormVideoUrl(''); setFormWebsiteUrl('');
     setIsDialogOpen(true);
   };
 
@@ -159,78 +127,52 @@ const AdminDashboard = () => {
     setFormAnswer(question.answer_en);
     setFormCategory(question.category || 'general');
     setFormImageUrl(question.image_url || '');
+    setFormVideoUrl(question.video_url || '');
+    setFormWebsiteUrl(question.website_url || '');
     setIsDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!formQuestion.trim() || !formAnswer.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Question and answer are required',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation Error', description: 'Question and answer are required', variant: 'destructive' });
       return;
     }
-
     setIsSaving(true);
-
     const questionData = {
       question_en: formQuestion.trim(),
       answer_en: formAnswer.trim(),
       category: formCategory,
       image_url: formImageUrl.trim() || null,
+      video_url: formVideoUrl.trim() || null,
+      website_url: formWebsiteUrl.trim() || null,
     };
 
     if (editingQuestion) {
-      const { error } = await supabase
-        .from('questions')
-        .update(questionData)
-        .eq('id', editingQuestion.id);
-
+      const { error } = await supabase.from('questions').update(questionData).eq('id', editingQuestion.id);
       if (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to update question',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to update question', variant: 'destructive' });
       } else {
         toast({ title: 'Question updated successfully' });
         loadQuestions();
         setIsDialogOpen(false);
       }
     } else {
-      const { error } = await supabase
-        .from('questions')
-        .insert({ ...questionData, created_by: user?.id });
-
+      const { error } = await supabase.from('questions').insert({ ...questionData, created_by: user?.id });
       if (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to add question',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to add question', variant: 'destructive' });
       } else {
         toast({ title: 'Question added successfully' });
         loadQuestions();
         setIsDialogOpen(false);
       }
     }
-
     setIsSaving(false);
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase
-      .from('questions')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await supabase.from('questions').delete().eq('id', id);
     if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete question',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to delete question', variant: 'destructive' });
     } else {
       toast({ title: 'Question deleted' });
       setQuestions(prev => prev.filter(q => q.id !== id));
@@ -253,7 +195,7 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-3">
             <Link to="/chat" className="flex items-center gap-2">
               <div className="w-14 h-14 rounded-xl gradient-bg flex items-center justify-center">
-                <img src='/512.png'  />
+                <img src='/512.png' />
               </div>
             </Link>
             <div>
@@ -264,17 +206,15 @@ const AdminDashboard = () => {
               <p className="text-xs text-muted-foreground">Manage Q&A Database</p>
             </div>
           </div>
-          
           <div className="flex items-center gap-2">
             <ThemeToggle />
-           
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -288,7 +228,6 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -302,7 +241,6 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -310,28 +248,63 @@ const AdminDashboard = () => {
                   <Image className="w-6 h-6 text-accent" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {questions.filter(q => q.image_url).length}
-                  </p>
-                  <p className="text-sm text-muted-foreground">With Images</p>
+                  <p className="text-2xl font-bold">{questions.filter(q => q.image_url).length}</p>
+                  <p className="text-sm text-muted-foreground">With Media</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{registeredUsers.length}</p>
+                  <p className="text-sm text-muted-foreground">Registered Users</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Registered Users Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Registered Users
+            </CardTitle>
+            <CardDescription>{registeredUsers.length} user{registeredUsers.length !== 1 ? 's' : ''} signed up</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {registeredUsers.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-4">No users registered yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {registeredUsers.map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                      {(u.full_name || u.email || '?')[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{u.full_name || 'Unnamed'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email || 'No email'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search questions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+            <Input placeholder="Search questions..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
           </div>
-          
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="All Categories" />
@@ -339,13 +312,10 @@ const AdminDashboard = () => {
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
               {CATEGORIES.map(cat => (
-                <SelectItem key={cat} value={cat} className="capitalize">
-                  {cat}
-                </SelectItem>
+                <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-
           <Button onClick={openAddDialog} className="gap-2 gradient-bg text-primary-foreground">
             <Plus className="w-4 h-4" />
             Add Question
@@ -356,15 +326,11 @@ const AdminDashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle>Questions Database</CardTitle>
-            <CardDescription>
-              {filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''} found
-            </CardDescription>
+            <CardDescription>{filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''} found</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
-              </div>
+              <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
             ) : filteredQuestions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <HelpCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -374,13 +340,10 @@ const AdminDashboard = () => {
             ) : (
               <div className="space-y-4">
                 {filteredQuestions.map((question) => (
-                  <div 
-                    key={question.id}
-                    className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors"
-                  >
+                  <div key={question.id} className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary capitalize">
                             {question.category || 'general'}
                           </span>
@@ -389,24 +352,25 @@ const AdminDashboard = () => {
                               <Image className="w-3 h-3" /> Image
                             </span>
                           )}
+                          {question.video_url && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-destructive/10 text-destructive flex items-center gap-1">
+                              <Video className="w-3 h-3" /> Video
+                            </span>
+                          )}
+                          {question.website_url && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-foreground flex items-center gap-1">
+                              <Link2 className="w-3 h-3" /> Link
+                            </span>
+                          )}
                         </div>
                         <h3 className="font-medium mb-1 line-clamp-2">{question.question_en}</h3>
                         <p className="text-sm text-muted-foreground line-clamp-2">{question.answer_en}</p>
                       </div>
-                      
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(question)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(question)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(question.id)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(question.id)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </div>
@@ -421,28 +385,20 @@ const AdminDashboard = () => {
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editingQuestion ? 'Edit Question' : 'Add New Question'}
-            </DialogTitle>
-            <DialogDescription>
-              Fill in the question and answer details below.
-            </DialogDescription>
+            <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add New Question'}</DialogTitle>
+            <DialogDescription>Fill in the question and answer details below.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Category</label>
               <Select value={formCategory} onValueChange={setFormCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map(cat => (
-                    <SelectItem key={cat} value={cat} className="capitalize">
-                      {cat}
-                    </SelectItem>
+                    <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -450,45 +406,36 @@ const AdminDashboard = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Question (English)</label>
-              <Textarea
-                value={formQuestion}
-                onChange={(e) => setFormQuestion(e.target.value)}
-                placeholder="Enter the question..."
-                className="min-h-[80px]"
-              />
+              <Textarea value={formQuestion} onChange={(e) => setFormQuestion(e.target.value)} placeholder="Enter the question..." className="min-h-[80px]" />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Answer (English)</label>
-              <Textarea
-                value={formAnswer}
-                onChange={(e) => setFormAnswer(e.target.value)}
-                placeholder="Enter the answer..."
-                className="min-h-[120px]"
-              />
+              <Textarea value={formAnswer} onChange={(e) => setFormAnswer(e.target.value)} placeholder="Enter the answer..." className="min-h-[120px]" />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Image URL (Optional)</label>
-              <Input
-                value={formImageUrl}
-                onChange={(e) => setFormImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-              />
+              <label className="text-sm font-medium flex items-center gap-2"><Image className="w-4 h-4" /> Image URL (Optional)</label>
+              <Input value={formImageUrl} onChange={(e) => setFormImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2"><Video className="w-4 h-4" /> Video URL (Optional)</label>
+              <Input value={formVideoUrl} onChange={(e) => setFormVideoUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2"><Link2 className="w-4 h-4" /> Website URL (Optional)</label>
+              <Input value={formWebsiteUrl} onChange={(e) => setFormWebsiteUrl(e.target.value)} placeholder="https://example.com" />
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              <X className="w-4 h-4 mr-2" />
-              Cancel
+              <X className="w-4 h-4 mr-2" /> Cancel
             </Button>
             <Button onClick={handleSave} disabled={isSaving} className="gradient-bg text-primary-foreground">
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               {editingQuestion ? 'Update' : 'Add'} Question
             </Button>
           </DialogFooter>
