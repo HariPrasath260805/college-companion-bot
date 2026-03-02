@@ -689,6 +689,7 @@ const Chat = () => {
         <ChatHeader 
           conversation={currentConversation}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onClearHistory={handleClearAllChats}
         />
 
         <ChatMessages
