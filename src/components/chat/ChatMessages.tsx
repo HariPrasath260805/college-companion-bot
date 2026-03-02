@@ -88,9 +88,11 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
           <div className={`
             inline-block p-4 rounded-2xl max-w-full
             ${isUser 
-              ? 'bg-primary text-primary-foreground rounded-tr-sm' 
+              ? 'text-white rounded-tr-sm' 
               : 'bg-muted rounded-tl-sm'}
-          `}>
+          `}
+          style={isUser ? { backgroundColor: `hsl(var(--bubble-h) var(--bubble-s) var(--bubble-l))` } : undefined}
+          >
             {/* Text content always shown first */}
             <p className="whitespace-pre-wrap text-left">{message.content}</p>
             

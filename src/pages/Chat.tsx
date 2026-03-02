@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useSettings } from '@/hooks/useSettings';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
@@ -48,6 +49,7 @@ const Chat = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   // Redirect if not logged in
   useEffect(() => {
@@ -562,7 +564,7 @@ const Chat = () => {
               content: m.content,
               image_url: m.image_url
             })),
-            language: 'en'
+            language: settings.language || 'en'
           }
         });
 
@@ -604,6 +606,25 @@ const Chat = () => {
 
     setMessages(prev => [...prev, botMessage]);
     setIsLoading(false);
+
+    // Play notification sound if enabled
+    if (settings.sound_enabled) {
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRl9vT19teleWF2ZWZtdCAQAAAAABAAEARAAA');
+        // Use a simple beep via AudioContext
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 800;
+        gain.gain.value = 0.1;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (e) {
+        // Silently fail if audio not available
+      }
+    }
 
     // Save bot message to database with error handling
     try {
@@ -689,6 +710,7 @@ const Chat = () => {
         <ChatHeader 
           conversation={currentConversation}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onClearHistory={handleClearAllChats}
         />
 
         <ChatMessages

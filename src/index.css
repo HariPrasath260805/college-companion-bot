@@ -38,6 +38,11 @@
 
     --radius: 0.75rem;
 
+    /* Chat bubble color */
+    --bubble-h: 221;
+    --bubble-s: 83%;
+    --bubble-l: 53%;
+
     /* Custom colors */
     --sapphire: 221 83% 53%;
     --sapphire-light: 221 83% 65%;
