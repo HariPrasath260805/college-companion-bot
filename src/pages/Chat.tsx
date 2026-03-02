@@ -607,6 +607,25 @@ const Chat = () => {
     setMessages(prev => [...prev, botMessage]);
     setIsLoading(false);
 
+    // Play notification sound if enabled
+    if (settings.sound_enabled) {
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRl9vT19teleWF2ZWZtdCAQAAAAABAAEARAAA');
+        // Use a simple beep via AudioContext
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 800;
+        gain.gain.value = 0.1;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch (e) {
+        // Silently fail if audio not available
+      }
+    }
+
     // Save bot message to database with error handling
     try {
       const { error: botMsgError } = await supabase.from('messages').insert({
