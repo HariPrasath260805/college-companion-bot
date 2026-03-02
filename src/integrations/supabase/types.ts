@@ -205,6 +205,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_settings: {
+        Row: {
+          bubble_color: string
+          created_at: string
+          id: string
+          language: string
+          sound_enabled: boolean
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bubble_color?: string
+          created_at?: string
+          id?: string
+          language?: string
+          sound_enabled?: boolean
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bubble_color?: string
+          created_at?: string
+          id?: string
+          language?: string
+          sound_enabled?: boolean
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
