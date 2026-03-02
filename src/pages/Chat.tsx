@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useSettings } from '@/hooks/useSettings';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { ChatHeader } from '@/components/chat/ChatHeader';
@@ -48,6 +49,7 @@ const Chat = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   // Redirect if not logged in
   useEffect(() => {
@@ -562,7 +564,7 @@ const Chat = () => {
               content: m.content,
               image_url: m.image_url
             })),
-            language: 'en'
+            language: settings.language || 'en'
           }
         });
 
