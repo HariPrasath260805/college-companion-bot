@@ -14,8 +14,9 @@ interface ChatMessage {
 const UMIS_PATTERN = /\b(\d{2}[A-Z]{2,5}\d{3,4})\b/i;
 
 // Normalize text for comparison
-function normalize(text: string): string {
-  return text.toLowerCase().replace(/[?.,!'"]/g, '').replace(/\s+/g, ' ').trim();
+function normalize(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text).toLowerCase().replace(/[?.,!'"]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // Extract key terms (remove filler words)
