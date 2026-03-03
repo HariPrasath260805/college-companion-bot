@@ -122,8 +122,8 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
         type: 'document',
         source: 'database',
         message: formatDocumentResponse(docMatch),
-        document_title: docMatch.title,
-        document_data: docMatch.data,
+        document_title: docMatch.Name || 'College Document',
+        document_data: { Name: docMatch.Name, Department: docMatch.Department, Year: docMatch.Year, Regno: docMatch.Regno },
       };
     }
   }
