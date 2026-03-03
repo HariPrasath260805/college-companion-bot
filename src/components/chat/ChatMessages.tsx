@@ -28,8 +28,7 @@ export function ChatMessages({
             How can I help you today?
           </h2>
           <p className="text-muted-foreground">
-            Ask me anything about the college - admissions, courses, schedules, fees, and more. 
-            You can also upload images for analysis.
+            Ask me anything about the college - admissions, courses, schedules, fees, student info (UMIS ID), and more.
           </p>
         </div>
       </div>
@@ -85,6 +84,21 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
         </div>
         
         <div className={`flex-1 space-y-2 ${isUser ? 'text-right' : ''}`}>
+          {/* Source badge for bot messages */}
+          {!isUser && message.source && (
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mb-1 ${
+              message.source === 'database' 
+                ? 'bg-secondary/20 text-secondary-foreground border border-secondary/30' 
+                : 'bg-accent/20 text-accent-foreground border border-accent/30'
+            }`}>
+              {message.source === 'database' ? (
+                <><Database className="w-3 h-3" /> From College Database</>
+              ) : (
+                <><Sparkles className="w-3 h-3" /> AI Generated Response</>
+              )}
+            </div>
+          )}
+
           <div className={`
             inline-block p-4 rounded-2xl max-w-full
             ${isUser 
@@ -93,10 +107,10 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
           `}
           style={isUser ? { backgroundColor: `hsl(var(--bubble-h) var(--bubble-s) var(--bubble-l))` } : undefined}
           >
-            {/* Text content always shown first */}
+            {/* Text content - use pre-wrap for structured responses */}
             <p className="whitespace-pre-wrap text-left">{message.content}</p>
             
-            {/* Image shown below text if present - compact size */}
+            {/* Image */}
             {message.image_url && (
               <div className="mt-2 relative group/image inline-block">
                 <img 
@@ -114,7 +128,7 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
               </div>
             )}
             
-            {/* Video shown if present */}
+            {/* Video link */}
             {message.video_url && (
               <div className="mt-2">
                 <button
@@ -128,7 +142,7 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
               </div>
             )}
             
-            {/* Website link shown if present */}
+            {/* Website link */}
             {message.website_url && (
               <div className="mt-2">
                 <button
@@ -142,7 +156,7 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
               </div>
             )}
             
-            {/* Learning links shown below content */}
+            {/* Learning links */}
             {!isUser && message.links && message.links.length > 0 && (
               <div className="mt-4 pt-3 border-t border-border/50">
                 <p className="text-xs font-medium text-muted-foreground mb-2">📚 Learn more:</p>
@@ -172,15 +186,6 @@ function MessageBubble({ message, onDelete }: { message: Message; onDelete: () =
             opacity-0 group-hover:opacity-100 transition-opacity
             ${isUser ? 'justify-end' : 'justify-start'}
           `}>
-            {!isUser && message.source && (
-              <span className="flex items-center gap-1">
-                {message.source === 'database' ? (
-                  <><Database className="w-3 h-3" /> From database</>
-                ) : (
-                  <><Sparkles className="w-3 h-3" /> AI response</>
-                )}
-              </span>
-            )}
             <Button
               variant="ghost"
               size="icon"
