@@ -14,8 +14,9 @@ interface ChatMessage {
 const UMIS_PATTERN = /\b(\d{2}[A-Z]{2,5}\d{3,4})\b/i;
 
 // Normalize text for comparison
-function normalize(text: string): string {
-  return text.toLowerCase().replace(/[?.,!'"]/g, '').replace(/\s+/g, ' ').trim();
+function normalize(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text).toLowerCase().replace(/[?.,!'"]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // Extract key terms (remove filler words)
@@ -121,8 +122,8 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
         type: 'document',
         source: 'database',
         message: formatDocumentResponse(docMatch),
-        document_title: docMatch.title,
-        document_data: docMatch.data,
+        document_title: docMatch.Name || 'College Document',
+        document_data: { Name: docMatch.Name, Department: docMatch.Department, Year: docMatch.Year, Regno: docMatch.Regno },
       };
     }
   }
@@ -233,20 +234,21 @@ function findDocumentMatch(docs: any[], normalizedInput: string, inputTerms: str
 
   for (const doc of docs) {
     let score = 0;
-    const titleNorm = normalize(doc.title);
-    const categoryNorm = normalize(doc.category || '');
-    const dataStr = normalize(JSON.stringify(doc.data));
+    // Use actual column names: Name, Department, Year, Regno
+    const nameNorm = normalize(doc.Name);
+    const deptNorm = normalize(doc.Department);
+    const allText = `${nameNorm} ${deptNorm} ${doc.Regno || ''} ${doc.Year || ''}`.toLowerCase();
 
-    // Title match
-    if (normalizedInput.includes(titleNorm) || titleNorm.includes(normalizedInput)) { score = 90; }
-    // Category match + term overlap
-    else if (inputTerms.some(t => categoryNorm.includes(t))) {
-      const dataTermMatch = inputTerms.filter(t => dataStr.includes(t)).length;
+    // Name match
+    if (nameNorm && (normalizedInput.includes(nameNorm) || nameNorm.includes(normalizedInput))) { score = 90; }
+    // Department match + term overlap
+    else if (deptNorm && inputTerms.some(t => deptNorm.includes(t))) {
+      const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
       score = 60 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30;
     }
-    // Full text search in JSONB
+    // Full text search
     else {
-      const dataTermMatch = inputTerms.filter(t => dataStr.includes(t)).length;
+      const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
       if (dataTermMatch >= 2) { score = 50 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30; }
     }
 
@@ -281,30 +283,12 @@ function formatStudentCard(student: any): string {
  * Format college document JSONB data as readable response
  */
 function formatDocumentResponse(doc: any): string {
-  const lines = [`📄 ${doc.title}`, `━━━━━━━━━━━━━━━━━━━━`];
+  const lines = [`📄 College Document`, `━━━━━━━━━━━━━━━━━━━━`];
   
-  if (typeof doc.data === 'object' && doc.data !== null) {
-    for (const [key, value] of Object.entries(doc.data)) {
-      const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      if (Array.isArray(value)) {
-        lines.push(`\n${label}:`);
-        (value as any[]).forEach((item, i) => {
-          if (typeof item === 'object') {
-            lines.push(`  ${i + 1}. ${Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
-          } else {
-            lines.push(`  ${i + 1}. ${item}`);
-          }
-        });
-      } else if (typeof value === 'object' && value !== null) {
-        lines.push(`\n${label}:`);
-        for (const [subKey, subVal] of Object.entries(value as Record<string, unknown>)) {
-          lines.push(`  ${subKey}: ${subVal}`);
-        }
-      } else {
-        lines.push(`${label}: ${value}`);
-      }
-    }
-  }
+  if (doc.Name) lines.push(`👤 Name: ${doc.Name}`);
+  if (doc.Regno) lines.push(`🆔 Reg No: ${doc.Regno}`);
+  if (doc.Department) lines.push(`🏛️ Department: ${doc.Department}`);
+  if (doc.Year) lines.push(`📅 Year: ${doc.Year}`);
   
   lines.push(`━━━━━━━━━━━━━━━━━━━━`);
   return lines.join('\n');
