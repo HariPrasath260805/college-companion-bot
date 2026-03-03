@@ -283,30 +283,12 @@ function formatStudentCard(student: any): string {
  * Format college document JSONB data as readable response
  */
 function formatDocumentResponse(doc: any): string {
-  const lines = [`📄 ${doc.title}`, `━━━━━━━━━━━━━━━━━━━━`];
+  const lines = [`📄 College Document`, `━━━━━━━━━━━━━━━━━━━━`];
   
-  if (typeof doc.data === 'object' && doc.data !== null) {
-    for (const [key, value] of Object.entries(doc.data)) {
-      const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      if (Array.isArray(value)) {
-        lines.push(`\n${label}:`);
-        (value as any[]).forEach((item, i) => {
-          if (typeof item === 'object') {
-            lines.push(`  ${i + 1}. ${Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
-          } else {
-            lines.push(`  ${i + 1}. ${item}`);
-          }
-        });
-      } else if (typeof value === 'object' && value !== null) {
-        lines.push(`\n${label}:`);
-        for (const [subKey, subVal] of Object.entries(value as Record<string, unknown>)) {
-          lines.push(`  ${subKey}: ${subVal}`);
-        }
-      } else {
-        lines.push(`${label}: ${value}`);
-      }
-    }
-  }
+  if (doc.Name) lines.push(`👤 Name: ${doc.Name}`);
+  if (doc.Regno) lines.push(`🆔 Reg No: ${doc.Regno}`);
+  if (doc.Department) lines.push(`🏛️ Department: ${doc.Department}`);
+  if (doc.Year) lines.push(`📅 Year: ${doc.Year}`);
   
   lines.push(`━━━━━━━━━━━━━━━━━━━━`);
   return lines.join('\n');
