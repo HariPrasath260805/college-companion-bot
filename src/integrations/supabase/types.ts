@@ -16,28 +16,28 @@ export type Database = {
     Tables: {
       college_documents: {
         Row: {
-          category: string | null
           created_at: string
-          data: Json
+          Department: string
           id: string
-          title: string
-          updated_at: string
+          Name: string | null
+          Regno: number
+          Year: number | null
         }
         Insert: {
-          category?: string | null
           created_at?: string
-          data?: Json
+          Department: string
           id?: string
-          title: string
-          updated_at?: string
+          Name?: string | null
+          Regno: number
+          Year?: number | null
         }
         Update: {
-          category?: string | null
           created_at?: string
-          data?: Json
+          Department?: string
           id?: string
-          title?: string
-          updated_at?: string
+          Name?: string | null
+          Regno?: number
+          Year?: number | null
         }
         Relationships: []
       }
