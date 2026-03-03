@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      college_documents: {
+        Row: {
+          category: string | null
+          created_at: string
+          data: Json
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
@@ -35,6 +62,36 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      faq_data: {
+        Row: {
+          answer: string
+          category: string | null
+          created_at: string
+          id: string
+          keywords: string[] | null
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          category?: string | null
+          created_at?: string
+          id?: string
+          keywords?: string[] | null
+          question?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -145,6 +202,51 @@ export type Database = {
           updated_at?: string
           video_url?: string | null
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          attendance: number | null
+          cgpa: number | null
+          created_at: string
+          department: string | null
+          email: string | null
+          fee_status: string | null
+          id: string
+          name: string
+          section: string | null
+          umis_id: string
+          updated_at: string
+          year: string | null
+        }
+        Insert: {
+          attendance?: number | null
+          cgpa?: number | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          fee_status?: string | null
+          id?: string
+          name: string
+          section?: string | null
+          umis_id: string
+          updated_at?: string
+          year?: string | null
+        }
+        Update: {
+          attendance?: number | null
+          cgpa?: number | null
+          created_at?: string
+          department?: string | null
+          email?: string | null
+          fee_status?: string | null
+          id?: string
+          name?: string
+          section?: string | null
+          umis_id?: string
+          updated_at?: string
+          year?: string | null
         }
         Relationships: []
       }
