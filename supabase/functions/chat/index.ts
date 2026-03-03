@@ -234,20 +234,21 @@ function findDocumentMatch(docs: any[], normalizedInput: string, inputTerms: str
 
   for (const doc of docs) {
     let score = 0;
-    const titleNorm = normalize(doc.title);
-    const categoryNorm = normalize(doc.category || '');
-    const dataStr = normalize(JSON.stringify(doc.data));
+    // Use actual column names: Name, Department, Year, Regno
+    const nameNorm = normalize(doc.Name);
+    const deptNorm = normalize(doc.Department);
+    const allText = `${nameNorm} ${deptNorm} ${doc.Regno || ''} ${doc.Year || ''}`.toLowerCase();
 
-    // Title match
-    if (normalizedInput.includes(titleNorm) || titleNorm.includes(normalizedInput)) { score = 90; }
-    // Category match + term overlap
-    else if (inputTerms.some(t => categoryNorm.includes(t))) {
-      const dataTermMatch = inputTerms.filter(t => dataStr.includes(t)).length;
+    // Name match
+    if (nameNorm && (normalizedInput.includes(nameNorm) || nameNorm.includes(normalizedInput))) { score = 90; }
+    // Department match + term overlap
+    else if (deptNorm && inputTerms.some(t => deptNorm.includes(t))) {
+      const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
       score = 60 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30;
     }
-    // Full text search in JSONB
+    // Full text search
     else {
-      const dataTermMatch = inputTerms.filter(t => dataStr.includes(t)).length;
+      const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
       if (dataTermMatch >= 2) { score = 50 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30; }
     }
 
