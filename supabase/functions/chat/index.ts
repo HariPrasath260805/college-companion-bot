@@ -307,6 +307,76 @@ function formatDocumentResponse(doc: any): string {
   return lines.join('\n');
 }
 
+/**
+ * Search internal_timetable by subject name/code
+ */
+function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms: string[]) {
+  // Check for internal/exam related keywords
+  const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
+  const hasExamContext = inputTerms.some(t => examKeywords.includes(t));
+  
+  let bestScore = 0;
+  let bestMatch: any = null;
+
+  for (const entry of entries) {
+    let score = 0;
+    const subjectNorm = normalize(entry.subject_name);
+    const codeNorm = normalize(entry.subject_code);
+    const deptNorm = normalize(entry.department);
+    const allText = `${subjectNorm} ${codeNorm} ${deptNorm} ${normalize(entry.internal_number)}`;
+
+    // Exact subject name match
+    if (normalizedInput.includes(subjectNorm) || subjectNorm.includes(normalizedInput)) {
+      score = 95;
+    }
+    // Subject code match
+    else if (codeNorm && (normalizedInput.includes(codeNorm) || codeNorm.includes(normalizedInput))) {
+      score = 93;
+    }
+    // Term overlap with subject
+    else {
+      const subjectTerms = extractKeyTerms(entry.subject_name);
+      const matched = inputTerms.filter(t => subjectTerms.includes(t) || allText.includes(t));
+      const ratio = inputTerms.length > 0 ? matched.length / inputTerms.length : 0;
+      if (matched.length >= 1 && (hasExamContext || ratio >= 0.5)) {
+        score = 60 + ratio * 30;
+      }
+    }
+
+    if (score > bestScore && score >= 65) {
+      bestScore = score;
+      bestMatch = entry;
+    }
+  }
+  return bestMatch;
+}
+
+/**
+ * Format internal timetable entry as a structured card
+ */
+function formatTimetableCard(entry: any): string {
+  const lines = [
+    `📋 Internal Exam Schedule`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `📚 Subject: ${entry.subject_name}${entry.subject_code ? ` (${entry.subject_code})` : ''}`,
+    `🏛️ Department: ${entry.department}`,
+  ];
+  if (entry.year) lines.push(`📅 Year: ${entry.year}`);
+  if (entry.semester) lines.push(`📌 Semester: ${entry.semester}`);
+  lines.push(`📝 ${entry.internal_number}`);
+  if (entry.exam_date) lines.push(`📆 Date: ${new Date(entry.exam_date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`);
+  if (entry.exam_time) lines.push(`🕐 Time: ${entry.exam_time}`);
+  if (entry.exam_duration) lines.push(`⏱️ Duration: ${entry.exam_duration}`);
+  if (entry.exam_type) lines.push(`📄 Type: ${entry.exam_type}`);
+  if (entry.max_marks) lines.push(`💯 Max Marks: ${entry.max_marks}`);
+  if (entry.room_number) lines.push(`🏫 Room: ${entry.room_number}`);
+  if (entry.faculty_name) lines.push(`👨‍🏫 Faculty: ${entry.faculty_name}`);
+  if (entry.syllabus_coverage) lines.push(`\n📖 Syllabus Coverage:\n${entry.syllabus_coverage}`);
+  if (entry.notes) lines.push(`\n📌 Notes: ${entry.notes}`);
+  lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+  return lines.join('\n');
+}
+
 // ============= Main Handler =============
 
 Deno.serve(async (req) => {
