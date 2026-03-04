@@ -113,7 +113,20 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 4. Search college_documents (JSONB)
+  // 4. Search internal_timetable
+  const { data: timetable } = await supabaseClient.from('internal_timetable').select('*');
+  if (timetable && timetable.length > 0) {
+    const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
+    if (ttMatch) {
+      return {
+        type: 'timetable',
+        source: 'database',
+        message: formatTimetableCard(ttMatch),
+      };
+    }
+  }
+
+  // 5. Search college_documents (JSONB)
   const { data: docs } = await supabaseClient.from('college_documents').select('*');
   if (docs && docs.length > 0) {
     const docMatch = findDocumentMatch(docs, normalizedInput, inputTerms);
