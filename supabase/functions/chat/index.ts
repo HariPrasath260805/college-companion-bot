@@ -131,6 +131,17 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   if (docs && docs.length > 0) {
     const docMatch = findDocumentMatch(docs, normalizedInput, inputTerms);
     if (docMatch) {
+      // Handle ambiguous matches
+      if (docMatch._ambiguous) {
+        const list = docMatch._matches.map((d: any, i: number) => 
+          `${i + 1}. ${d.Name || 'Unnamed'} — Dept: ${d.Department}, Regno: ${d.Regno}${d.Year ? ', Year: ' + d.Year : ''}`
+        ).join('\n');
+        return {
+          type: 'ambiguous',
+          source: 'database',
+          message: `I found multiple matching records. Could you please be more specific?\n\n${list}\n\nPlease provide the full name or registration number.`,
+        };
+      }
       return {
         type: 'document',
         source: 'database',
@@ -242,35 +253,59 @@ function findBestQuestionMatch(questions: any[], normalizedInput: string, inputT
  * Search college_documents including JSONB data
  */
 function findDocumentMatch(docs: any[], normalizedInput: string, inputTerms: string[]) {
-  let bestScore = 0;
-  let bestDoc: any = null;
-
-  for (const doc of docs) {
+  // Score all docs
+  const scored = docs.map(doc => {
     let score = 0;
-    // Use actual column names: Name, Department, Year, Regno
     const nameNorm = normalize(doc.Name);
     const deptNorm = normalize(doc.Department);
     const allText = `${nameNorm} ${deptNorm} ${doc.Regno || ''} ${doc.Year || ''}`.toLowerCase();
 
-    // Name match
-    if (nameNorm && (normalizedInput.includes(nameNorm) || nameNorm.includes(normalizedInput))) { score = 90; }
-    // Department match + term overlap
-    else if (deptNorm && inputTerms.some(t => deptNorm.includes(t))) {
-      const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
-      score = 60 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30;
+    // Exact full name match
+    if (nameNorm && normalizedInput === nameNorm) { score = 100; }
+    // Full name contained
+    else if (nameNorm && normalizedInput.includes(nameNorm)) { score = 95; }
+    // Partial name match - check if ALL input name terms match in the name
+    else if (nameNorm) {
+      const nameTerms = nameNorm.split(' ').filter(t => t.length > 1);
+      const inputNameTerms = inputTerms.filter(t => !['name', 'details', 'info', 'document', 'student', 'regno', 'department', 'year'].includes(t));
+      if (inputNameTerms.length > 0) {
+        const matchedInName = inputNameTerms.filter(t => nameTerms.some(nt => nt.includes(t) || t.includes(nt)));
+        if (matchedInName.length === inputNameTerms.length && inputNameTerms.length >= 1) {
+          score = 85;
+        } else if (matchedInName.length > 0 && matchedInName.length < inputNameTerms.length) {
+          // Partial name match - could be ambiguous
+          score = 60 + (matchedInName.length / inputNameTerms.length) * 20;
+        }
+      }
     }
-    // Full text search
-    else {
+    // Department match + term overlap
+    if (score < 60 && deptNorm && inputTerms.some(t => deptNorm.includes(t))) {
       const dataTermMatch = inputTerms.filter(t => allText.includes(t)).length;
-      if (dataTermMatch >= 2) { score = 50 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30; }
+      score = Math.max(score, 60 + (dataTermMatch / Math.max(inputTerms.length, 1)) * 30);
+    }
+    // Regno exact match
+    if (doc.Regno && inputTerms.some(t => String(doc.Regno) === t)) {
+      score = 98;
     }
 
-    if (score > bestScore && score >= 65) {
-      bestScore = score;
-      bestDoc = doc;
-    }
+    return { ...doc, score };
+  });
+
+  const THRESHOLD = 65;
+  const matches = scored.filter(d => d.score >= THRESHOLD).sort((a, b) => b.score - a.score);
+  
+  if (matches.length === 0) return null;
+  
+  // If multiple matches with similar scores (ambiguous - e.g. "karthi" matches "karthi geyan" and "karthi kumar")
+  const topScore = matches[0].score;
+  const ambiguousMatches = matches.filter(m => m.score >= topScore - 10);
+  
+  if (ambiguousMatches.length > 1 && topScore < 95) {
+    // Return special ambiguous result
+    return { _ambiguous: true, _matches: ambiguousMatches.slice(0, 5) };
   }
-  return bestDoc;
+  
+  return matches[0];
 }
 
 /**
