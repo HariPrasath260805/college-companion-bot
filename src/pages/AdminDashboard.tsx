@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Plus, Pencil, Trash2, Search, Shield, MessageSquare,
-  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays
+  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -87,6 +87,27 @@ const AdminDashboard = () => {
   const [editingTimetable, setEditingTimetable] = useState<InternalTimetable | null>(null);
   const [isTimetableLoading, setIsTimetableLoading] = useState(true);
 
+  // College documents state
+  interface CollegeDocument {
+    id: string;
+    Name: string | null;
+    Department: string;
+    Year: number | null;
+    Regno: number;
+    created_at: string;
+  }
+  const [collegeDocuments, setCollegeDocuments] = useState<CollegeDocument[]>([]);
+  const [filteredDocuments, setFilteredDocuments] = useState<CollegeDocument[]>([]);
+  const [docSearch, setDocSearch] = useState('');
+  const [docDeptFilter, setDocDeptFilter] = useState('all');
+  const [isDocDialogOpen, setIsDocDialogOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<CollegeDocument | null>(null);
+  const [isDocLoading, setIsDocLoading] = useState(true);
+  const [docName, setDocName] = useState('');
+  const [docDepartment, setDocDepartment] = useState('CSE');
+  const [docYear, setDocYear] = useState('');
+  const [docRegno, setDocRegno] = useState('');
+
   // Timetable form state
   const [ttSubjectName, setTtSubjectName] = useState('');
   const [ttSubjectCode, setTtSubjectCode] = useState('');
@@ -133,8 +154,26 @@ const AdminDashboard = () => {
       loadQuestions();
       loadUsers();
       loadTimetable();
+      loadCollegeDocuments();
     }
   }, [isAdmin]);
+
+  // Filter college documents
+  useEffect(() => {
+    let filtered = collegeDocuments;
+    if (docSearch) {
+      const q = docSearch.toLowerCase();
+      filtered = filtered.filter(d => 
+        (d.Name && d.Name.toLowerCase().includes(q)) ||
+        d.Department.toLowerCase().includes(q) ||
+        String(d.Regno).includes(q)
+      );
+    }
+    if (docDeptFilter !== 'all') {
+      filtered = filtered.filter(d => d.Department === docDeptFilter);
+    }
+    setFilteredDocuments(filtered);
+  }, [collegeDocuments, docSearch, docDeptFilter]);
 
   // Filter questions
   useEffect(() => {
@@ -347,6 +386,78 @@ const AdminDashboard = () => {
     }
   };
 
+  // ====== College Documents CRUD ======
+  const loadCollegeDocuments = async () => {
+    setIsDocLoading(true);
+    const { data, error } = await supabase.from('college_documents').select('*').order('created_at', { ascending: false });
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to load documents', variant: 'destructive' });
+    } else {
+      setCollegeDocuments((data as any[]) || []);
+    }
+    setIsDocLoading(false);
+  };
+
+  const openAddDoc = () => {
+    setEditingDoc(null);
+    setDocName(''); setDocDepartment('CSE'); setDocYear(''); setDocRegno('');
+    setIsDocDialogOpen(true);
+  };
+
+  const openEditDoc = (doc: CollegeDocument) => {
+    setEditingDoc(doc);
+    setDocName(doc.Name || '');
+    setDocDepartment(doc.Department);
+    setDocYear(doc.Year?.toString() || '');
+    setDocRegno(doc.Regno.toString());
+    setIsDocDialogOpen(true);
+  };
+
+  const handleSaveDoc = async () => {
+    if (!docRegno.trim() || !docDepartment.trim()) {
+      toast({ title: 'Validation Error', description: 'Regno and Department are required', variant: 'destructive' });
+      return;
+    }
+    setIsSaving(true);
+    const docData: any = {
+      Name: docName.trim() || null,
+      Department: docDepartment,
+      Year: docYear ? parseInt(docYear) : null,
+      Regno: parseFloat(docRegno),
+    };
+
+    if (editingDoc) {
+      const { error } = await supabase.from('college_documents').update(docData).eq('id', editingDoc.id);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to update document', variant: 'destructive' });
+      } else {
+        toast({ title: 'Document updated' });
+        loadCollegeDocuments();
+        setIsDocDialogOpen(false);
+      }
+    } else {
+      const { error } = await supabase.from('college_documents').insert(docData);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to add document', variant: 'destructive' });
+      } else {
+        toast({ title: 'Document added' });
+        loadCollegeDocuments();
+        setIsDocDialogOpen(false);
+      }
+    }
+    setIsSaving(false);
+  };
+
+  const handleDeleteDoc = async (id: string) => {
+    const { error } = await supabase.from('college_documents').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to delete document', variant: 'destructive' });
+    } else {
+      toast({ title: 'Document deleted' });
+      setCollegeDocuments(prev => prev.filter(d => d.id !== id));
+    }
+  };
+
   if (authLoading || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -480,14 +591,17 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Tabs for Questions and Timetable */}
+        {/* Tabs for Questions, Timetable, and Documents */}
         <Tabs defaultValue="questions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="questions" className="gap-2">
               <HelpCircle className="w-4 h-4" /> Questions ({questions.length})
             </TabsTrigger>
             <TabsTrigger value="timetable" className="gap-2">
-              <CalendarDays className="w-4 h-4" /> Internal Timetable ({timetableEntries.length})
+              <CalendarDays className="w-4 h-4" /> Timetable ({timetableEntries.length})
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="gap-2">
+              <FileText className="w-4 h-4" /> Documents ({collegeDocuments.length})
             </TabsTrigger>
           </TabsList>
 
@@ -669,6 +783,73 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          {/* College Documents Tab */}
+          <TabsContent value="documents">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search by name, regno..." value={docSearch} onChange={(e) => setDocSearch(e.target.value)} className="pl-10" />
+              </div>
+              <Select value={docDeptFilter} onValueChange={setDocDeptFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {DEPARTMENTS.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={openAddDoc} className="gap-2 gradient-bg text-primary-foreground">
+                <Plus className="w-4 h-4" /> Add Document
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" /> College Documents
+                </CardTitle>
+                <CardDescription>{filteredDocuments.length} document{filteredDocuments.length !== 1 ? 's' : ''} found</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isDocLoading ? (
+                  <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+                ) : filteredDocuments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No documents found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredDocuments.map((doc) => (
+                      <div key={doc.id} className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">{doc.Department}</span>
+                              {doc.Year && <span className="px-2 py-0.5 text-xs rounded-full bg-secondary/10 text-secondary">Year {doc.Year}</span>}
+                            </div>
+                            <h3 className="font-medium mb-1">{doc.Name || 'Unnamed'}</h3>
+                            <p className="text-sm text-muted-foreground">Regno: {doc.Regno}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button variant="ghost" size="icon" onClick={() => openEditDoc(doc)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteDoc(doc.id)}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -726,6 +907,50 @@ const AdminDashboard = () => {
             <Button onClick={handleSave} disabled={isSaving} className="gradient-bg text-primary-foreground">
               {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               {editingQuestion ? 'Update' : 'Add'} Question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit College Document Dialog */}
+      <Dialog open={isDocDialogOpen} onOpenChange={setIsDocDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingDoc ? 'Edit Document' : 'Add New Document'}</DialogTitle>
+            <DialogDescription>Fill in the college document details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Name</label>
+              <Input value={docName} onChange={(e) => setDocName(e.target.value)} placeholder="e.g., Karthi Kumar" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Department *</label>
+              <Select value={docDepartment} onValueChange={setDocDepartment}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Year</label>
+                <Input type="number" value={docYear} onChange={(e) => setDocYear(e.target.value)} placeholder="e.g., 2" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Regno *</label>
+                <Input type="number" value={docRegno} onChange={(e) => setDocRegno(e.target.value)} placeholder="e.g., 12345" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDocDialogOpen(false)}><X className="w-4 h-4 mr-2" /> Cancel</Button>
+            <Button onClick={handleSaveDoc} disabled={isSaving} className="gradient-bg text-primary-foreground">
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              {editingDoc ? 'Update' : 'Add'} Document
             </Button>
           </DialogFooter>
         </DialogContent>
