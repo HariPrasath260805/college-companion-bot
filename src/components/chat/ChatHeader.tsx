@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Conversation } from '@/pages/Chat';
-import { MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare, Settings, Menu } from 'lucide-react';
 import { SettingsPanel } from '@/components/chat/SettingsPanel';
 
 interface ChatHeaderProps {
@@ -9,15 +9,22 @@ interface ChatHeaderProps {
   onClearHistory: () => void;
 }
 
-export function ChatHeader({ conversation, onClearHistory }: ChatHeaderProps) {
+export function ChatHeader({ conversation, onToggleSidebar, onClearHistory }: ChatHeaderProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
     <>
       <header className="h-14 border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <button
+            onClick={onToggleSidebar}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors md:hidden"
+            title="Toggle Sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <MessageSquare className="w-4 h-4" />
-          <span className="font-medium">
+          <span className="font-medium truncate max-w-[200px]">
             {conversation ? conversation.title : 'New Chat'}
           </span>
         </div>
