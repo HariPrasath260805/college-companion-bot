@@ -95,6 +95,69 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_timetable: {
+        Row: {
+          created_at: string
+          department: string
+          exam_date: string | null
+          exam_duration: string | null
+          exam_time: string | null
+          exam_type: string | null
+          faculty_name: string | null
+          id: string
+          internal_number: string
+          max_marks: number | null
+          notes: string | null
+          room_number: string | null
+          semester: string | null
+          subject_code: string | null
+          subject_name: string
+          syllabus_coverage: string | null
+          updated_at: string
+          year: string | null
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          exam_date?: string | null
+          exam_duration?: string | null
+          exam_time?: string | null
+          exam_type?: string | null
+          faculty_name?: string | null
+          id?: string
+          internal_number?: string
+          max_marks?: number | null
+          notes?: string | null
+          room_number?: string | null
+          semester?: string | null
+          subject_code?: string | null
+          subject_name: string
+          syllabus_coverage?: string | null
+          updated_at?: string
+          year?: string | null
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          exam_date?: string | null
+          exam_duration?: string | null
+          exam_time?: string | null
+          exam_type?: string | null
+          faculty_name?: string | null
+          id?: string
+          internal_number?: string
+          max_marks?: number | null
+          notes?: string | null
+          room_number?: string | null
+          semester?: string | null
+          subject_code?: string | null
+          subject_name?: string
+          syllabus_coverage?: string | null
+          updated_at?: string
+          year?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string

@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Plus, Pencil, Trash2, Search, Shield, MessageSquare,
-  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users
+  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -18,6 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from 'react-router-dom';
 
 interface Question {
@@ -38,10 +39,33 @@ interface UserProfile {
   created_at: string;
 }
 
+interface InternalTimetable {
+  id: string;
+  subject_name: string;
+  subject_code: string | null;
+  department: string;
+  year: string | null;
+  semester: string | null;
+  internal_number: string;
+  exam_date: string | null;
+  exam_time: string | null;
+  exam_duration: string | null;
+  syllabus_coverage: string | null;
+  exam_type: string | null;
+  max_marks: number | null;
+  room_number: string | null;
+  faculty_name: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 const CATEGORIES = [
   'general', 'admissions', 'courses', 'fees', 'exams',
   'facilities', 'placement', 'hostel', 'events', 'other'
 ];
+
+const DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML', 'MBA', 'MCA', 'Other'];
+const INTERNAL_NUMBERS = ['1st Internal', '2nd Internal', '3rd Internal', 'Model Exam', 'Retest'];
 
 const AdminDashboard = () => {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -54,7 +78,33 @@ const AdminDashboard = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>([]);
   
-  // Form state
+  // Internal timetable state
+  const [timetableEntries, setTimetableEntries] = useState<InternalTimetable[]>([]);
+  const [filteredTimetable, setFilteredTimetable] = useState<InternalTimetable[]>([]);
+  const [timetableSearch, setTimetableSearch] = useState('');
+  const [timetableDeptFilter, setTimetableDeptFilter] = useState('all');
+  const [isTimetableDialogOpen, setIsTimetableDialogOpen] = useState(false);
+  const [editingTimetable, setEditingTimetable] = useState<InternalTimetable | null>(null);
+  const [isTimetableLoading, setIsTimetableLoading] = useState(true);
+
+  // Timetable form state
+  const [ttSubjectName, setTtSubjectName] = useState('');
+  const [ttSubjectCode, setTtSubjectCode] = useState('');
+  const [ttDepartment, setTtDepartment] = useState('CSE');
+  const [ttYear, setTtYear] = useState('');
+  const [ttSemester, setTtSemester] = useState('');
+  const [ttInternalNumber, setTtInternalNumber] = useState('1st Internal');
+  const [ttExamDate, setTtExamDate] = useState('');
+  const [ttExamTime, setTtExamTime] = useState('');
+  const [ttExamDuration, setTtExamDuration] = useState('');
+  const [ttSyllabusCoverage, setTtSyllabusCoverage] = useState('');
+  const [ttExamType, setTtExamType] = useState('Written');
+  const [ttMaxMarks, setTtMaxMarks] = useState('');
+  const [ttRoomNumber, setTtRoomNumber] = useState('');
+  const [ttFacultyName, setTtFacultyName] = useState('');
+  const [ttNotes, setTtNotes] = useState('');
+
+  // Question form state
   const [formQuestion, setFormQuestion] = useState('');
   const [formAnswer, setFormAnswer] = useState('');
   const [formCategory, setFormCategory] = useState('general');
@@ -82,6 +132,7 @@ const AdminDashboard = () => {
     if (isAdmin) {
       loadQuestions();
       loadUsers();
+      loadTimetable();
     }
   }, [isAdmin]);
 
@@ -97,6 +148,24 @@ const AdminDashboard = () => {
     }
     setFilteredQuestions(filtered);
   }, [questions, searchQuery, selectedCategory]);
+
+  // Filter timetable
+  useEffect(() => {
+    let filtered = timetableEntries;
+    if (timetableSearch) {
+      const q = timetableSearch.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.subject_name.toLowerCase().includes(q) || 
+        (t.subject_code && t.subject_code.toLowerCase().includes(q)) ||
+        t.department.toLowerCase().includes(q) ||
+        (t.faculty_name && t.faculty_name.toLowerCase().includes(q))
+      );
+    }
+    if (timetableDeptFilter !== 'all') {
+      filtered = filtered.filter(t => t.department === timetableDeptFilter);
+    }
+    setFilteredTimetable(filtered);
+  }, [timetableEntries, timetableSearch, timetableDeptFilter]);
 
   const loadQuestions = async () => {
     setIsLoading(true);
@@ -114,6 +183,18 @@ const AdminDashboard = () => {
     if (!error && data) setRegisteredUsers(data);
   };
 
+  const loadTimetable = async () => {
+    setIsTimetableLoading(true);
+    const { data, error } = await supabase.from('internal_timetable').select('*').order('exam_date', { ascending: true });
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to load timetable', variant: 'destructive' });
+    } else {
+      setTimetableEntries((data as any[]) || []);
+    }
+    setIsTimetableLoading(false);
+  };
+
+  // ====== Question CRUD ======
   const openAddDialog = () => {
     setEditingQuestion(null);
     setFormQuestion(''); setFormAnswer(''); setFormCategory('general');
@@ -179,6 +260,93 @@ const AdminDashboard = () => {
     }
   };
 
+  // ====== Timetable CRUD ======
+  const openAddTimetable = () => {
+    setEditingTimetable(null);
+    setTtSubjectName(''); setTtSubjectCode(''); setTtDepartment('CSE');
+    setTtYear(''); setTtSemester(''); setTtInternalNumber('1st Internal');
+    setTtExamDate(''); setTtExamTime(''); setTtExamDuration('');
+    setTtSyllabusCoverage(''); setTtExamType('Written'); setTtMaxMarks('');
+    setTtRoomNumber(''); setTtFacultyName(''); setTtNotes('');
+    setIsTimetableDialogOpen(true);
+  };
+
+  const openEditTimetable = (entry: InternalTimetable) => {
+    setEditingTimetable(entry);
+    setTtSubjectName(entry.subject_name);
+    setTtSubjectCode(entry.subject_code || '');
+    setTtDepartment(entry.department);
+    setTtYear(entry.year || '');
+    setTtSemester(entry.semester || '');
+    setTtInternalNumber(entry.internal_number);
+    setTtExamDate(entry.exam_date || '');
+    setTtExamTime(entry.exam_time || '');
+    setTtExamDuration(entry.exam_duration || '');
+    setTtSyllabusCoverage(entry.syllabus_coverage || '');
+    setTtExamType(entry.exam_type || 'Written');
+    setTtMaxMarks(entry.max_marks?.toString() || '');
+    setTtRoomNumber(entry.room_number || '');
+    setTtFacultyName(entry.faculty_name || '');
+    setTtNotes(entry.notes || '');
+    setIsTimetableDialogOpen(true);
+  };
+
+  const handleSaveTimetable = async () => {
+    if (!ttSubjectName.trim() || !ttDepartment.trim()) {
+      toast({ title: 'Validation Error', description: 'Subject name and department are required', variant: 'destructive' });
+      return;
+    }
+    setIsSaving(true);
+    const data: any = {
+      subject_name: ttSubjectName.trim(),
+      subject_code: ttSubjectCode.trim() || null,
+      department: ttDepartment,
+      year: ttYear.trim() || null,
+      semester: ttSemester.trim() || null,
+      internal_number: ttInternalNumber,
+      exam_date: ttExamDate || null,
+      exam_time: ttExamTime.trim() || null,
+      exam_duration: ttExamDuration.trim() || null,
+      syllabus_coverage: ttSyllabusCoverage.trim() || null,
+      exam_type: ttExamType || 'Written',
+      max_marks: ttMaxMarks ? parseFloat(ttMaxMarks) : null,
+      room_number: ttRoomNumber.trim() || null,
+      faculty_name: ttFacultyName.trim() || null,
+      notes: ttNotes.trim() || null,
+    };
+
+    if (editingTimetable) {
+      const { error } = await supabase.from('internal_timetable').update(data).eq('id', editingTimetable.id);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to update timetable entry', variant: 'destructive' });
+      } else {
+        toast({ title: 'Timetable entry updated' });
+        loadTimetable();
+        setIsTimetableDialogOpen(false);
+      }
+    } else {
+      const { error } = await supabase.from('internal_timetable').insert(data);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to add timetable entry', variant: 'destructive' });
+      } else {
+        toast({ title: 'Timetable entry added' });
+        loadTimetable();
+        setIsTimetableDialogOpen(false);
+      }
+    }
+    setIsSaving(false);
+  };
+
+  const handleDeleteTimetable = async (id: string) => {
+    const { error } = await supabase.from('internal_timetable').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to delete timetable entry', variant: 'destructive' });
+    } else {
+      toast({ title: 'Timetable entry deleted' });
+      setTimetableEntries(prev => prev.filter(t => t.id !== id));
+    }
+  };
+
   if (authLoading || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -203,7 +371,7 @@ const AdminDashboard = () => {
                 <Shield className="w-5 h-5 text-destructive" />
                 Admin Dashboard
               </h1>
-              <p className="text-xs text-muted-foreground">Manage Q&A Database</p>
+              <p className="text-xs text-muted-foreground">Manage Q&A Database & Timetable</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -214,7 +382,7 @@ const AdminDashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -223,7 +391,7 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{questions.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Questions</p>
+                  <p className="text-sm text-muted-foreground">Questions</p>
                 </div>
               </div>
             </CardContent>
@@ -262,7 +430,20 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{registeredUsers.length}</p>
-                  <p className="text-sm text-muted-foreground">Registered Users</p>
+                  <p className="text-sm text-muted-foreground">Users</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                  <CalendarDays className="w-6 h-6 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{timetableEntries.length}</p>
+                  <p className="text-sm text-muted-foreground">Exams</p>
                 </div>
               </div>
             </CardContent>
@@ -299,91 +480,199 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search questions..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
-          </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {CATEGORIES.map(cat => (
-                <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={openAddDialog} className="gap-2 gradient-bg text-primary-foreground">
-            <Plus className="w-4 h-4" />
-            Add Question
-          </Button>
-        </div>
+        {/* Tabs for Questions and Timetable */}
+        <Tabs defaultValue="questions" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="questions" className="gap-2">
+              <HelpCircle className="w-4 h-4" /> Questions ({questions.length})
+            </TabsTrigger>
+            <TabsTrigger value="timetable" className="gap-2">
+              <CalendarDays className="w-4 h-4" /> Internal Timetable ({timetableEntries.length})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Questions List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Questions Database</CardTitle>
-            <CardDescription>{filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''} found</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-            ) : filteredQuestions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <HelpCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No questions found</p>
-                <p className="text-sm">Add your first question to get started!</p>
+          {/* Questions Tab */}
+          <TabsContent value="questions">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search questions..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
               </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredQuestions.map((question) => (
-                  <div key={question.id} className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary capitalize">
-                            {question.category || 'general'}
-                          </span>
-                          {question.image_url && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-secondary/10 text-secondary flex items-center gap-1">
-                              <Image className="w-3 h-3" /> Image
-                            </span>
-                          )}
-                          {question.video_url && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-destructive/10 text-destructive flex items-center gap-1">
-                              <Video className="w-3 h-3" /> Video
-                            </span>
-                          )}
-                          {question.website_url && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-foreground flex items-center gap-1">
-                              <Link2 className="w-3 h-3" /> Link
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-medium mb-1 line-clamp-2">{question.question_en}</h3>
-                        <p className="text-sm text-muted-foreground line-clamp-2">{question.answer_en}</p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(question)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(question.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {CATEGORIES.map(cat => (
+                    <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={openAddDialog} className="gap-2 gradient-bg text-primary-foreground">
+                <Plus className="w-4 h-4" /> Add Question
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Questions Database</CardTitle>
+                <CardDescription>{filteredQuestions.length} question{filteredQuestions.length !== 1 ? 's' : ''} found</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+                ) : filteredQuestions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <HelpCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No questions found</p>
+                    <p className="text-sm">Add your first question to get started!</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-4">
+                    {filteredQuestions.map((question) => (
+                      <div key={question.id} className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary capitalize">
+                                {question.category || 'general'}
+                              </span>
+                              {question.image_url && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-secondary/10 text-secondary flex items-center gap-1">
+                                  <Image className="w-3 h-3" /> Image
+                                </span>
+                              )}
+                              {question.video_url && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-destructive/10 text-destructive flex items-center gap-1">
+                                  <Video className="w-3 h-3" /> Video
+                                </span>
+                              )}
+                              {question.website_url && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-foreground flex items-center gap-1">
+                                  <Link2 className="w-3 h-3" /> Link
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="font-medium mb-1 line-clamp-2">{question.question_en}</h3>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{question.answer_en}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button variant="ghost" size="icon" onClick={() => openEditDialog(question)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(question.id)}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Internal Timetable Tab */}
+          <TabsContent value="timetable">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search by subject, code, faculty..." value={timetableSearch} onChange={(e) => setTimetableSearch(e.target.value)} className="pl-10" />
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Select value={timetableDeptFilter} onValueChange={setTimetableDeptFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {DEPARTMENTS.map(dept => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={openAddTimetable} className="gap-2 gradient-bg text-primary-foreground">
+                <Plus className="w-4 h-4" /> Add Exam
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5" /> Internal Timetable
+                </CardTitle>
+                <CardDescription>{filteredTimetable.length} exam{filteredTimetable.length !== 1 ? 's' : ''} scheduled</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isTimetableLoading ? (
+                  <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
+                ) : filteredTimetable.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CalendarDays className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No timetable entries found</p>
+                    <p className="text-sm">Add your first internal exam schedule!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredTimetable.map((entry) => (
+                      <div key={entry.id} className="p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-destructive/10 text-destructive font-medium">
+                                {entry.internal_number}
+                              </span>
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                                {entry.department}
+                              </span>
+                              {entry.year && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-secondary/10 text-secondary">
+                                  Year {entry.year}
+                                </span>
+                              )}
+                              {entry.semester && (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-foreground">
+                                  Sem {entry.semester}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="font-medium mb-1">
+                              {entry.subject_name}
+                              {entry.subject_code && <span className="text-muted-foreground text-sm ml-2">({entry.subject_code})</span>}
+                            </h3>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              {entry.exam_date && <span>📅 {new Date(entry.exam_date).toLocaleDateString()}</span>}
+                              {entry.exam_time && <span>🕐 {entry.exam_time}</span>}
+                              {entry.exam_duration && <span>⏱️ {entry.exam_duration}</span>}
+                              {entry.max_marks && <span>📝 {entry.max_marks} marks</span>}
+                              {entry.room_number && <span>🏫 Room {entry.room_number}</span>}
+                              {entry.faculty_name && <span>👨‍🏫 {entry.faculty_name}</span>}
+                            </div>
+                            {entry.syllabus_coverage && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">📚 {entry.syllabus_coverage}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button variant="ghost" size="icon" onClick={() => openEditTimetable(entry)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteTimetable(entry.id)}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
-      {/* Add/Edit Dialog */}
+      {/* Add/Edit Question Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -437,6 +726,127 @@ const AdminDashboard = () => {
             <Button onClick={handleSave} disabled={isSaving} className="gradient-bg text-primary-foreground">
               {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
               {editingQuestion ? 'Update' : 'Add'} Question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Timetable Dialog */}
+      <Dialog open={isTimetableDialogOpen} onOpenChange={setIsTimetableDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingTimetable ? 'Edit Exam Entry' : 'Add New Exam Entry'}</DialogTitle>
+            <DialogDescription>Fill in the internal exam schedule details.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Subject Name *</label>
+                <Input value={ttSubjectName} onChange={(e) => setTtSubjectName(e.target.value)} placeholder="e.g., Data Structures" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Subject Code</label>
+                <Input value={ttSubjectCode} onChange={(e) => setTtSubjectCode(e.target.value)} placeholder="e.g., CS301" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Department *</label>
+                <Select value={ttDepartment} onValueChange={setTtDepartment}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Year</label>
+                <Input value={ttYear} onChange={(e) => setTtYear(e.target.value)} placeholder="e.g., 2nd" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Semester</label>
+                <Input value={ttSemester} onChange={(e) => setTtSemester(e.target.value)} placeholder="e.g., 3rd" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Internal Number</label>
+                <Select value={ttInternalNumber} onValueChange={setTtInternalNumber}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {INTERNAL_NUMBERS.map(n => (
+                      <SelectItem key={n} value={n}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exam Type</label>
+                <Select value={ttExamType} onValueChange={setTtExamType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Written">Written</SelectItem>
+                    <SelectItem value="Online">Online</SelectItem>
+                    <SelectItem value="Practical">Practical</SelectItem>
+                    <SelectItem value="Viva">Viva</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exam Date</label>
+                <Input type="date" value={ttExamDate} onChange={(e) => setTtExamDate(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exam Time</label>
+                <Input value={ttExamTime} onChange={(e) => setTtExamTime(e.target.value)} placeholder="e.g., 10:00 AM" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Duration</label>
+                <Input value={ttExamDuration} onChange={(e) => setTtExamDuration(e.target.value)} placeholder="e.g., 1.5 hours" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Max Marks</label>
+                <Input type="number" value={ttMaxMarks} onChange={(e) => setTtMaxMarks(e.target.value)} placeholder="e.g., 50" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Room Number</label>
+                <Input value={ttRoomNumber} onChange={(e) => setTtRoomNumber(e.target.value)} placeholder="e.g., A-201" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Faculty Name</label>
+                <Input value={ttFacultyName} onChange={(e) => setTtFacultyName(e.target.value)} placeholder="e.g., Dr. Kumar" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Syllabus Coverage</label>
+              <Textarea value={ttSyllabusCoverage} onChange={(e) => setTtSyllabusCoverage(e.target.value)} placeholder="e.g., Unit 1-3, Arrays, Linked Lists, Stacks..." className="min-h-[80px]" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea value={ttNotes} onChange={(e) => setTtNotes(e.target.value)} placeholder="Any additional instructions..." className="min-h-[60px]" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTimetableDialogOpen(false)}>
+              <X className="w-4 h-4 mr-2" /> Cancel
+            </Button>
+            <Button onClick={handleSaveTimetable} disabled={isSaving} className="gradient-bg text-primary-foreground">
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              {editingTimetable ? 'Update' : 'Add'} Exam
             </Button>
           </DialogFooter>
         </DialogContent>
