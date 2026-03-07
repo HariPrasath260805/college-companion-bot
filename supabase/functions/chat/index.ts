@@ -37,6 +37,9 @@ const actionWords = ['fee', 'fees', 'cost', 'price', 'admission', 'result', 'res
 const criticalTerms = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
   'i', 'ii', 'iii', 'iv', 'v', 'vi', 'semester'];
 
+// Exam-related keywords
+const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
+
 /**
  * Search the database across multiple tables
  * Priority: UMIS student lookup > faq_data > questions > college_documents
