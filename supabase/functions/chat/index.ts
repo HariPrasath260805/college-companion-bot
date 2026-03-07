@@ -367,10 +367,34 @@ function formatDocumentResponse(doc: any): string {
  * Search internal_timetable by subject name/code
  */
 function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms: string[]) {
-  // Check for internal/exam related keywords
   const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
   const hasExamContext = inputTerms.some(t => examKeywords.includes(t));
   
+  // Detect which internal number the user is asking about
+  const internalNumberMap: Record<string, string[]> = {
+    '1st Internal': ['1st', 'first', '1', 'internal 1'],
+    '2nd Internal': ['2nd', 'second', '2', 'internal 2'],
+    '3rd Internal': ['3rd', 'third', '3', 'internal 3'],
+    '4th Internal': ['4th', 'fourth', '4', 'internal 4'],
+    '5th Internal': ['5th', 'fifth', '5', 'internal 5'],
+  };
+  
+  let requestedInternal: string | null = null;
+  for (const [internalName, patterns] of Object.entries(internalNumberMap)) {
+    for (const pattern of patterns) {
+      // Check for patterns like "2nd internal", "internal 2", "second internal"
+      if (normalizedInput.includes(pattern + ' internal') || 
+          normalizedInput.includes('internal ' + pattern) ||
+          normalizedInput.includes(pattern + ' exam') ||
+          // Check standalone ordinals like "2nd" in context of exam/internal
+          (hasExamContext && inputTerms.includes(pattern))) {
+        requestedInternal = internalName;
+        break;
+      }
+    }
+    if (requestedInternal) break;
+  }
+
   let bestScore = 0;
   let bestMatch: any = null;
 
@@ -379,7 +403,12 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
     const subjectNorm = normalize(entry.subject_name);
     const codeNorm = normalize(entry.subject_code);
     const deptNorm = normalize(entry.department);
-    const allText = `${subjectNorm} ${codeNorm} ${deptNorm} ${normalize(entry.internal_number)}`;
+    const entryInternalNorm = normalize(entry.internal_number);
+
+    // If user asked for a specific internal number, SKIP entries that don't match
+    if (requestedInternal && entryInternalNorm !== normalize(requestedInternal)) {
+      continue; // Skip this entry entirely
+    }
 
     // Exact subject name match
     if (normalizedInput.includes(subjectNorm) || subjectNorm.includes(normalizedInput)) {
@@ -392,8 +421,10 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
     // Term overlap with subject
     else {
       const subjectTerms = extractKeyTerms(entry.subject_name);
-      const matched = inputTerms.filter(t => subjectTerms.includes(t) || allText.includes(t));
-      const ratio = inputTerms.length > 0 ? matched.length / inputTerms.length : 0;
+      // Filter out exam/internal related terms for subject matching
+      const subjectInputTerms = inputTerms.filter(t => !examKeywords.includes(t) && !['1st', '2nd', '3rd', '4th', '5th', 'first', 'second', 'third', 'fourth', 'fifth', '1', '2', '3', '4', '5'].includes(t));
+      const matched = subjectInputTerms.filter(t => subjectTerms.includes(t) || subjectNorm.includes(t));
+      const ratio = subjectInputTerms.length > 0 ? matched.length / subjectInputTerms.length : 0;
       if (matched.length >= 1 && (hasExamContext || ratio >= 0.5)) {
         score = 60 + ratio * 30;
       }
