@@ -130,23 +130,38 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   }
 
   // 5. Search college_documents by Regno ONLY (not by name)
-  // Check if input contains a numeric registration number
-  const regnoPattern = /\b(\d{3,})\b/;
+  // Check if input contains a numeric registration number (any digit count)
+  const regnoPattern = /\b(\d+)\b/;
   const regnoMatch = userMessage.match(regnoPattern);
   if (regnoMatch) {
-    const regnoValue = regnoMatch[1];
+    const regnoValue = parseInt(regnoMatch[1]);
     const { data: docs } = await supabaseClient
       .from('college_documents')
       .select('*')
-      .eq('Regno', parseInt(regnoValue));
+      .eq('Regno', regnoValue);
     
-    if (docs && docs.length > 0) {
+    if (docs && docs.length === 1) {
       return {
         type: 'document',
         source: 'database',
         message: formatDocumentResponse(docs[0]),
         document_title: docs[0].Name || 'College Document',
         document_data: { Name: docs[0].Name, Department: docs[0].Department, Year: docs[0].Year, Regno: docs[0].Regno },
+      };
+    } else if (docs && docs.length > 1) {
+      // Multiple records with same regno (shouldn't happen but handle it)
+      const list = docs.map((d: any) => `- ${d.Name} (Dept: ${d.Department}, Year: ${d.Year})`).join('\n');
+      return {
+        type: 'document',
+        source: 'database',
+        message: `Multiple records found for Regno ${regnoValue}:\n${list}\n\nPlease contact the admin for clarification.`,
+      };
+    } else {
+      // Regno was provided but no match found
+      return {
+        type: 'document_not_found',
+        source: 'database',
+        message: `No record found for Registration Number: ${regnoValue}. Please verify the number and try again.`,
       };
     }
   }
