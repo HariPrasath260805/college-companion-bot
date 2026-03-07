@@ -37,6 +37,9 @@ const actionWords = ['fee', 'fees', 'cost', 'price', 'admission', 'result', 'res
 const criticalTerms = ['1st', '2nd', '3rd', '4th', '5th', '6th', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth',
   'i', 'ii', 'iii', 'iv', 'v', 'vi', 'semester'];
 
+// Exam-related keywords
+const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
+
 /**
  * Search the database across multiple tables
  * Priority: UMIS student lookup > faq_data > questions > college_documents
@@ -126,29 +129,50 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 5. Search college_documents (JSONB)
-  const { data: docs } = await supabaseClient.from('college_documents').select('*');
-  if (docs && docs.length > 0) {
-    const docMatch = findDocumentMatch(docs, normalizedInput, inputTerms);
-    if (docMatch) {
-      // Handle ambiguous matches
-      if (docMatch._ambiguous) {
-        const list = docMatch._matches.map((d: any, i: number) => 
-          `${i + 1}. ${d.Name || 'Unnamed'} — Dept: ${d.Department}, Regno: ${d.Regno}${d.Year ? ', Year: ' + d.Year : ''}`
-        ).join('\n');
-        return {
-          type: 'ambiguous',
-          source: 'database',
-          message: `I found multiple matching records. Could you please be more specific?\n\n${list}\n\nPlease provide the full name or registration number.`,
-        };
-      }
+  // 5. Search college_documents by Regno ONLY (not by name)
+  // Check if input contains a numeric registration number
+  const regnoPattern = /\b(\d{3,})\b/;
+  const regnoMatch = userMessage.match(regnoPattern);
+  if (regnoMatch) {
+    const regnoValue = regnoMatch[1];
+    const { data: docs } = await supabaseClient
+      .from('college_documents')
+      .select('*')
+      .eq('Regno', parseInt(regnoValue));
+    
+    if (docs && docs.length > 0) {
       return {
         type: 'document',
         source: 'database',
-        message: formatDocumentResponse(docMatch),
-        document_title: docMatch.Name || 'College Document',
-        document_data: { Name: docMatch.Name, Department: docMatch.Department, Year: docMatch.Year, Regno: docMatch.Regno },
+        message: formatDocumentResponse(docs[0]),
+        document_title: docs[0].Name || 'College Document',
+        document_data: { Name: docs[0].Name, Department: docs[0].Department, Year: docs[0].Year, Regno: docs[0].Regno },
       };
+    }
+  }
+
+  // If user seems to be asking about a person by name, redirect to use Regno/UMIS
+  const nameQueryIndicators = ['details', 'info', 'information', 'who', 'student', 'about'];
+  const hasNameQuery = inputTerms.some(t => nameQueryIndicators.includes(t));
+  const looksLikePersonName = !umisMatch && !regnoMatch && inputTerms.length <= 4 && 
+    !inputTerms.some(t => actionWords.includes(t)) && 
+    !inputTerms.some(t => examKeywords.includes(t));
+  
+  // Check if any input term matches a name in college_documents
+  if (hasNameQuery || looksLikePersonName) {
+    const { data: allDocs } = await supabaseClient.from('college_documents').select('Name, Regno');
+    if (allDocs && allDocs.length > 0) {
+      const matchingDocs = allDocs.filter((d: any) => {
+        const nameNorm = normalize(d.Name);
+        return inputTerms.some(t => nameNorm.includes(t) && t.length > 2);
+      });
+      if (matchingDocs.length > 0) {
+        return {
+          type: 'name_redirect',
+          source: 'database',
+          message: `I found ${matchingDocs.length} record(s) matching that name. For accurate results, please provide the Registration Number (Regno) or UMIS ID instead of a name, as multiple students may share similar names.\n\nExample: "details of 12345" or "22UACS001"`,
+        };
+      }
     }
   }
 
@@ -346,10 +370,34 @@ function formatDocumentResponse(doc: any): string {
  * Search internal_timetable by subject name/code
  */
 function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms: string[]) {
-  // Check for internal/exam related keywords
   const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
   const hasExamContext = inputTerms.some(t => examKeywords.includes(t));
   
+  // Detect which internal number the user is asking about
+  const internalNumberMap: Record<string, string[]> = {
+    '1st Internal': ['1st', 'first', '1', 'internal 1'],
+    '2nd Internal': ['2nd', 'second', '2', 'internal 2'],
+    '3rd Internal': ['3rd', 'third', '3', 'internal 3'],
+    '4th Internal': ['4th', 'fourth', '4', 'internal 4'],
+    '5th Internal': ['5th', 'fifth', '5', 'internal 5'],
+  };
+  
+  let requestedInternal: string | null = null;
+  for (const [internalName, patterns] of Object.entries(internalNumberMap)) {
+    for (const pattern of patterns) {
+      // Check for patterns like "2nd internal", "internal 2", "second internal"
+      if (normalizedInput.includes(pattern + ' internal') || 
+          normalizedInput.includes('internal ' + pattern) ||
+          normalizedInput.includes(pattern + ' exam') ||
+          // Check standalone ordinals like "2nd" in context of exam/internal
+          (hasExamContext && inputTerms.includes(pattern))) {
+        requestedInternal = internalName;
+        break;
+      }
+    }
+    if (requestedInternal) break;
+  }
+
   let bestScore = 0;
   let bestMatch: any = null;
 
@@ -358,7 +406,12 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
     const subjectNorm = normalize(entry.subject_name);
     const codeNorm = normalize(entry.subject_code);
     const deptNorm = normalize(entry.department);
-    const allText = `${subjectNorm} ${codeNorm} ${deptNorm} ${normalize(entry.internal_number)}`;
+    const entryInternalNorm = normalize(entry.internal_number);
+
+    // If user asked for a specific internal number, SKIP entries that don't match
+    if (requestedInternal && entryInternalNorm !== normalize(requestedInternal)) {
+      continue; // Skip this entry entirely
+    }
 
     // Exact subject name match
     if (normalizedInput.includes(subjectNorm) || subjectNorm.includes(normalizedInput)) {
@@ -371,8 +424,10 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
     // Term overlap with subject
     else {
       const subjectTerms = extractKeyTerms(entry.subject_name);
-      const matched = inputTerms.filter(t => subjectTerms.includes(t) || allText.includes(t));
-      const ratio = inputTerms.length > 0 ? matched.length / inputTerms.length : 0;
+      // Filter out exam/internal related terms for subject matching
+      const subjectInputTerms = inputTerms.filter(t => !examKeywords.includes(t) && !['1st', '2nd', '3rd', '4th', '5th', 'first', 'second', 'third', 'fourth', 'fifth', '1', '2', '3', '4', '5'].includes(t));
+      const matched = subjectInputTerms.filter(t => subjectTerms.includes(t) || subjectNorm.includes(t));
+      const ratio = subjectInputTerms.length > 0 ? matched.length / subjectInputTerms.length : 0;
       if (matched.length >= 1 && (hasExamContext || ratio >= 0.5)) {
         score = 60 + ratio * 30;
       }
