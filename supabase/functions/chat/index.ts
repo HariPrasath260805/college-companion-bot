@@ -126,29 +126,50 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 5. Search college_documents (JSONB)
-  const { data: docs } = await supabaseClient.from('college_documents').select('*');
-  if (docs && docs.length > 0) {
-    const docMatch = findDocumentMatch(docs, normalizedInput, inputTerms);
-    if (docMatch) {
-      // Handle ambiguous matches
-      if (docMatch._ambiguous) {
-        const list = docMatch._matches.map((d: any, i: number) => 
-          `${i + 1}. ${d.Name || 'Unnamed'} — Dept: ${d.Department}, Regno: ${d.Regno}${d.Year ? ', Year: ' + d.Year : ''}`
-        ).join('\n');
-        return {
-          type: 'ambiguous',
-          source: 'database',
-          message: `I found multiple matching records. Could you please be more specific?\n\n${list}\n\nPlease provide the full name or registration number.`,
-        };
-      }
+  // 5. Search college_documents by Regno ONLY (not by name)
+  // Check if input contains a numeric registration number
+  const regnoPattern = /\b(\d{3,})\b/;
+  const regnoMatch = userMessage.match(regnoPattern);
+  if (regnoMatch) {
+    const regnoValue = regnoMatch[1];
+    const { data: docs } = await supabaseClient
+      .from('college_documents')
+      .select('*')
+      .eq('Regno', parseInt(regnoValue));
+    
+    if (docs && docs.length > 0) {
       return {
         type: 'document',
         source: 'database',
-        message: formatDocumentResponse(docMatch),
-        document_title: docMatch.Name || 'College Document',
-        document_data: { Name: docMatch.Name, Department: docMatch.Department, Year: docMatch.Year, Regno: docMatch.Regno },
+        message: formatDocumentResponse(docs[0]),
+        document_title: docs[0].Name || 'College Document',
+        document_data: { Name: docs[0].Name, Department: docs[0].Department, Year: docs[0].Year, Regno: docs[0].Regno },
       };
+    }
+  }
+
+  // If user seems to be asking about a person by name, redirect to use Regno/UMIS
+  const nameQueryIndicators = ['details', 'info', 'information', 'who', 'student', 'about'];
+  const hasNameQuery = inputTerms.some(t => nameQueryIndicators.includes(t));
+  const looksLikePersonName = !umisMatch && !regnoMatch && inputTerms.length <= 4 && 
+    !inputTerms.some(t => actionWords.includes(t)) && 
+    !inputTerms.some(t => examKeywords.includes(t));
+  
+  // Check if any input term matches a name in college_documents
+  if (hasNameQuery || looksLikePersonName) {
+    const { data: allDocs } = await supabaseClient.from('college_documents').select('Name, Regno');
+    if (allDocs && allDocs.length > 0) {
+      const matchingDocs = allDocs.filter((d: any) => {
+        const nameNorm = normalize(d.Name);
+        return inputTerms.some(t => nameNorm.includes(t) && t.length > 2);
+      });
+      if (matchingDocs.length > 0) {
+        return {
+          type: 'name_redirect',
+          source: 'database',
+          message: `I found ${matchingDocs.length} record(s) matching that name. For accurate results, please provide the Registration Number (Regno) or UMIS ID instead of a name, as multiple students may share similar names.\n\nExample: "details of 12345" or "22UACS001"`,
+        };
+      }
     }
   }
 
