@@ -416,16 +416,24 @@ const AdminDashboard = () => {
   };
 
   const handleSaveDoc = async () => {
-    if (!docRegno.trim() || !docDepartment.trim()) {
+    const normalizedRegno = docRegno.trim();
+
+    if (!normalizedRegno || !docDepartment.trim()) {
       toast({ title: 'Validation Error', description: 'Regno and Department are required', variant: 'destructive' });
       return;
     }
+
+    if (!/^\d+$/.test(normalizedRegno)) {
+      toast({ title: 'Validation Error', description: 'Regno must contain only digits', variant: 'destructive' });
+      return;
+    }
+
     setIsSaving(true);
     const docData: any = {
       Name: docName.trim() || null,
       Department: docDepartment,
-      Year: docYear ? parseInt(docYear) : null,
-      Regno: parseFloat(docRegno),
+      Year: docYear ? parseInt(docYear, 10) : null,
+      Regno: normalizedRegno,
     };
 
     if (editingDoc) {
