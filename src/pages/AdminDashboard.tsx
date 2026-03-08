@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Plus, Pencil, Trash2, Search, Shield, MessageSquare,
-  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText
+  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText, Upload
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -107,6 +107,8 @@ const AdminDashboard = () => {
   const [docDepartment, setDocDepartment] = useState('CSE');
   const [docYear, setDocYear] = useState('');
   const [docRegno, setDocRegno] = useState('');
+  const [isCsvUploading, setIsCsvUploading] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Timetable form state
   const [ttSubjectName, setTtSubjectName] = useState('');
@@ -458,6 +460,93 @@ const AdminDashboard = () => {
     }
   };
 
+  // ====== CSV Import for College Documents ======
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsCsvUploading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      if (lines.length < 2) {
+        toast({ title: 'Error', description: 'CSV file must have a header row and at least one data row', variant: 'destructive' });
+        setIsCsvUploading(false);
+        return;
+      }
+
+      // Parse header
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      const nameIdx = header.findIndex(h => h === 'name');
+      const deptIdx = header.findIndex(h => h === 'department' || h === 'dept');
+      const yearIdx = header.findIndex(h => h === 'year');
+      const regnoIdx = header.findIndex(h => h === 'regno' || h === 'reg no' || h === 'registration number' || h === 'registration_number');
+
+      if (regnoIdx === -1 || deptIdx === -1) {
+        toast({ title: 'Error', description: 'CSV must have "Regno" and "Department" columns', variant: 'destructive' });
+        setIsCsvUploading(false);
+        return;
+      }
+
+      // Parse rows
+      const parseCsvRow = (line: string): string[] => {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (const char of line) {
+          if (char === '"') { inQuotes = !inQuotes; }
+          else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+          else { current += char; }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const rows = lines.slice(1).map(parseCsvRow);
+      const docs = rows
+        .filter(cols => cols[regnoIdx] && cols[deptIdx])
+        .map(cols => ({
+          Name: nameIdx >= 0 ? (cols[nameIdx] || null) : null,
+          Department: cols[deptIdx],
+          Year: yearIdx >= 0 && cols[yearIdx] ? parseInt(cols[yearIdx]) : null,
+          Regno: parseFloat(cols[regnoIdx]),
+        }))
+        .filter(d => !isNaN(d.Regno));
+
+      if (docs.length === 0) {
+        toast({ title: 'Error', description: 'No valid rows found in CSV', variant: 'destructive' });
+        setIsCsvUploading(false);
+        return;
+      }
+
+      // Batch insert (chunks of 100)
+      let inserted = 0;
+      for (let i = 0; i < docs.length; i += 100) {
+        const chunk = docs.slice(i, i + 100);
+        const { error } = await supabase.from('college_documents').insert(chunk);
+        if (error) {
+          console.error('CSV insert error:', error);
+          toast({ title: 'Error', description: `Failed at row ${i + 1}: ${error.message}`, variant: 'destructive' });
+          break;
+        }
+        inserted += chunk.length;
+      }
+
+      if (inserted > 0) {
+        toast({ title: `${inserted} document${inserted !== 1 ? 's' : ''} imported successfully` });
+        loadCollegeDocuments();
+      }
+    } catch (err) {
+      console.error('CSV parse error:', err);
+      toast({ title: 'Error', description: 'Failed to parse CSV file', variant: 'destructive' });
+    }
+    
+    setIsCsvUploading(false);
+    // Reset file input
+    if (csvFileInputRef.current) csvFileInputRef.current.value = '';
+  };
+
   if (authLoading || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -801,6 +890,22 @@ const AdminDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <input
+                type="file"
+                accept=".csv"
+                ref={csvFileInputRef}
+                onChange={handleCsvUpload}
+                className="hidden"
+              />
+              <Button 
+                variant="outline" 
+                onClick={() => csvFileInputRef.current?.click()} 
+                className="gap-2"
+                disabled={isCsvUploading}
+              >
+                {isCsvUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {isCsvUploading ? 'Importing...' : 'Import CSV'}
+              </Button>
               <Button onClick={openAddDoc} className="gap-2 gradient-bg text-primary-foreground">
                 <Plus className="w-4 h-4" /> Add Document
               </Button>
