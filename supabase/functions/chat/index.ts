@@ -92,7 +92,27 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 3. Search questions table (existing knowledge base)
+  // 3. Search internal_timetable BEFORE questions (so subject names match timetable first)
+  const { data: timetable } = await supabaseClient.from('internal_timetable').select('*');
+  if (timetable && timetable.length > 0) {
+    const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
+    if (ttMatch) {
+      if (ttMatch._multiple) {
+        return {
+          type: 'timetable',
+          source: 'database',
+          message: ttMatch._entries.map((e: any) => formatTimetableCard(e)).join('\n\n'),
+        };
+      }
+      return {
+        type: 'timetable',
+        source: 'database',
+        message: formatTimetableCard(ttMatch),
+      };
+    }
+  }
+
+  // 4. Search questions table (existing knowledge base)
   const { data: questions } = await supabaseClient.from('questions').select('*');
   if (questions && questions.length > 0) {
     const qMatch = findBestQuestionMatch(questions, normalizedInput, inputTerms);
@@ -112,19 +132,6 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
         image_url: qMatch.match.image_url || null,
         video_url: qMatch.match.video_url || null,
         website_url: qMatch.match.website_url || null,
-      };
-    }
-  }
-
-  // 4. Search internal_timetable
-  const { data: timetable } = await supabaseClient.from('internal_timetable').select('*');
-  if (timetable && timetable.length > 0) {
-    const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
-    if (ttMatch) {
-      return {
-        type: 'timetable',
-        source: 'database',
-        message: formatTimetableCard(ttMatch),
       };
     }
   }
@@ -383,8 +390,8 @@ function formatDocumentResponse(doc: any): string {
  * Search internal_timetable by subject name/code
  */
 function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms: string[]) {
-  const examKeywords = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
-  const hasExamContext = inputTerms.some(t => examKeywords.includes(t));
+  const examKw = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
+  const hasExamContext = inputTerms.some(t => examKw.includes(t));
   
   // Detect which internal number the user is asking about
   const internalNumberMap: Record<string, string[]> = {
@@ -398,11 +405,9 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
   let requestedInternal: string | null = null;
   for (const [internalName, patterns] of Object.entries(internalNumberMap)) {
     for (const pattern of patterns) {
-      // Check for patterns like "2nd internal", "internal 2", "second internal"
       if (normalizedInput.includes(pattern + ' internal') || 
           normalizedInput.includes('internal ' + pattern) ||
           normalizedInput.includes(pattern + ' exam') ||
-          // Check standalone ordinals like "2nd" in context of exam/internal
           (hasExamContext && inputTerms.includes(pattern))) {
         requestedInternal = internalName;
         break;
@@ -411,47 +416,78 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
     if (requestedInternal) break;
   }
 
-  let bestScore = 0;
-  let bestMatch: any = null;
+  // Fuzzy term match helper: handles plural/singular (e.g. "network" matches "networks")
+  function fuzzyTermMatch(a: string, b: string): boolean {
+    if (a === b) return true;
+    if (a.length > 2 && b.length > 2) {
+      if (a.startsWith(b) || b.startsWith(a)) return true;
+      // singular/plural: "network" vs "networks"
+      if (a + 's' === b || b + 's' === a) return true;
+    }
+    return false;
+  }
 
-  for (const entry of entries) {
-    let score = 0;
+  // Score each entry for subject match
+  function scoreEntry(entry: any): number {
     const subjectNorm = normalize(entry.subject_name);
     const codeNorm = normalize(entry.subject_code);
-    const deptNorm = normalize(entry.department);
-    const entryInternalNorm = normalize(entry.internal_number);
 
-    // If user asked for a specific internal number, SKIP entries that don't match
-    if (requestedInternal && entryInternalNorm !== normalize(requestedInternal)) {
-      continue; // Skip this entry entirely
-    }
+    // Filter out exam/ordinal terms to get pure subject terms from input
+    const ordinals = ['1st', '2nd', '3rd', '4th', '5th', 'first', 'second', 'third', 'fourth', 'fifth', '1', '2', '3', '4', '5'];
+    const subjectInputTerms = inputTerms.filter(t => !examKw.includes(t) && !ordinals.includes(t));
 
-    // Exact subject name match
-    if (normalizedInput.includes(subjectNorm) || subjectNorm.includes(normalizedInput)) {
-      score = 95;
-    }
-    // Subject code match
-    else if (codeNorm && (normalizedInput.includes(codeNorm) || codeNorm.includes(normalizedInput))) {
-      score = 93;
-    }
-    // Term overlap with subject
-    else {
-      const subjectTerms = extractKeyTerms(entry.subject_name);
-      // Filter out exam/internal related terms for subject matching
-      const subjectInputTerms = inputTerms.filter(t => !examKeywords.includes(t) && !['1st', '2nd', '3rd', '4th', '5th', 'first', 'second', 'third', 'fourth', 'fifth', '1', '2', '3', '4', '5'].includes(t));
-      const matched = subjectInputTerms.filter(t => subjectTerms.includes(t) || subjectNorm.includes(t));
-      const ratio = subjectInputTerms.length > 0 ? matched.length / subjectInputTerms.length : 0;
-      if (matched.length >= 1 && (hasExamContext || ratio >= 0.5)) {
-        score = 60 + ratio * 30;
+    // Exact subject name containment
+    if (subjectInputTerms.length > 0) {
+      const subjectInput = subjectInputTerms.join(' ');
+      if (subjectNorm === subjectInput || subjectNorm.includes(subjectInput) || subjectInput.includes(subjectNorm)) {
+        return 95;
       }
     }
 
-    if (score > bestScore && score >= 65) {
-      bestScore = score;
-      bestMatch = entry;
+    // Subject code match (e.g. "cn" for subject_code "CN")
+    if (codeNorm && subjectInputTerms.some(t => t === codeNorm)) {
+      return 93;
+    }
+
+    // Fuzzy term overlap
+    if (subjectInputTerms.length > 0) {
+      const subjectTerms = extractKeyTerms(entry.subject_name);
+      const matched = subjectInputTerms.filter(t => subjectTerms.some(st => fuzzyTermMatch(t, st)) || subjectNorm.includes(t));
+      const ratio = matched.length / subjectInputTerms.length;
+      // For pure subject queries (no exam context), require higher ratio
+      if (matched.length >= 1 && ratio >= 0.5) {
+        return 60 + ratio * 30;
+      }
+    }
+    return 0;
+  }
+
+  // Collect all matching entries with scores
+  const scored = entries.map(e => ({ entry: e, score: scoreEntry(e) })).filter(s => s.score >= 65);
+  if (scored.length === 0) return null;
+
+  // Filter by requested internal number if specified
+  let filtered = scored;
+  if (requestedInternal) {
+    filtered = scored.filter(s => normalize(s.entry.internal_number) === normalize(requestedInternal));
+    if (filtered.length === 0) return null;
+  }
+
+  // Sort by score desc, then by internal_number
+  filtered.sort((a, b) => b.score - a.score || (a.entry.internal_number || '').localeCompare(b.entry.internal_number || ''));
+
+  // If no specific internal requested and multiple internals for same subject, return all as combined
+  if (!requestedInternal) {
+    const topScore = filtered[0].score;
+    const topSubject = normalize(filtered[0].entry.subject_name);
+    const sameSubject = filtered.filter(s => s.score >= topScore - 5 && normalize(s.entry.subject_name) === topSubject);
+    if (sameSubject.length > 1) {
+      // Return a special combined object
+      return { _multiple: true, _entries: sameSubject.map(s => s.entry) };
     }
   }
-  return bestMatch;
+
+  return filtered[0].entry;
 }
 
 /**
