@@ -1051,7 +1051,7 @@ const AdminDashboard = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Regno *</label>
-                <Input type="number" value={docRegno} onChange={(e) => setDocRegno(e.target.value)} placeholder="e.g., 12345" />
+                <Input value={docRegno} onChange={(e) => setDocRegno(e.target.value)} placeholder="e.g., 2308206180211101" />
               </div>
             </div>
           </div>
