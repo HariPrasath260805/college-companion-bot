@@ -390,8 +390,12 @@ function formatDocumentResponse(doc: any): string {
  * Search internal_timetable by subject name/code
  */
 function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms: string[]) {
-  const examKw = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when'];
+  const examKw = ['internal', 'exam', 'test', 'timetable', 'schedule', 'date', 'when', 'marks', 'syllabus'];
   const hasExamContext = inputTerms.some(t => examKw.includes(t));
+
+  // If there's no exam-related keyword at all, don't match timetable
+  // e.g. "what is computer network" should NOT return timetable
+  if (!hasExamContext) return null;
   
   // Detect which internal number the user is asking about
   const internalNumberMap: Record<string, string[]> = {
