@@ -514,13 +514,16 @@ const AdminDashboard = () => {
       const rows = lines.slice(1).map(parseCsvRow);
       const docs = rows
         .filter(cols => cols[regnoIdx] && cols[deptIdx])
-        .map(cols => ({
-          Name: nameIdx >= 0 ? (cols[nameIdx] || null) : null,
-          Department: cols[deptIdx],
-          Year: yearIdx >= 0 && cols[yearIdx] ? parseInt(cols[yearIdx]) : null,
-          Regno: parseFloat(cols[regnoIdx]),
-        }))
-        .filter(d => !isNaN(d.Regno));
+        .map(cols => {
+          const regnoValue = (cols[regnoIdx] || '').trim();
+          return {
+            Name: nameIdx >= 0 ? (cols[nameIdx] || null) : null,
+            Department: cols[deptIdx],
+            Year: yearIdx >= 0 && cols[yearIdx] ? parseInt(cols[yearIdx], 10) : null,
+            Regno: regnoValue,
+          };
+        })
+        .filter(d => /^\d+$/.test(d.Regno));
 
       if (docs.length === 0) {
         toast({ title: 'Error', description: 'No valid rows found in CSV', variant: 'destructive' });
