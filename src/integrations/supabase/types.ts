@@ -21,6 +21,7 @@ export type Database = {
           id: string
           Name: string | null
           Regno: number
+          updated_at: string
           Year: number | null
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           Name?: string | null
           Regno: number
+          updated_at?: string
           Year?: number | null
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           Name?: string | null
           Regno?: number
+          updated_at?: string
           Year?: number | null
         }
         Relationships: []
