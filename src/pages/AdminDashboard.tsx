@@ -562,6 +562,169 @@ const AdminDashboard = () => {
     if (csvFileInputRef.current) csvFileInputRef.current.value = '';
   };
 
+  // ====== CSV Import for Questions ======
+  const parseCsvRowGeneric = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleQuestionCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsQuestionCsvUploading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 2) {
+        toast({ title: 'Error', description: 'CSV must have header + data rows', variant: 'destructive' });
+        setIsQuestionCsvUploading(false);
+        return;
+      }
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      const qIdx = header.findIndex(h => h === 'question' || h === 'question_en');
+      const aIdx = header.findIndex(h => h === 'answer' || h === 'answer_en');
+      const catIdx = header.findIndex(h => h === 'category');
+      const imgIdx = header.findIndex(h => h === 'image_url');
+      const vidIdx = header.findIndex(h => h === 'video_url');
+      const webIdx = header.findIndex(h => h === 'website_url');
+
+      if (qIdx === -1 || aIdx === -1) {
+        toast({ title: 'Error', description: 'CSV must have "question" and "answer" columns', variant: 'destructive' });
+        setIsQuestionCsvUploading(false);
+        return;
+      }
+
+      const rows = lines.slice(1).map(parseCsvRowGeneric);
+      const docs = rows
+        .filter(cols => cols[qIdx]?.trim() && cols[aIdx]?.trim())
+        .map(cols => ({
+          question_en: cols[qIdx].trim(),
+          answer_en: cols[aIdx].trim(),
+          category: catIdx >= 0 ? (cols[catIdx]?.trim() || 'general') : 'general',
+          image_url: imgIdx >= 0 ? (cols[imgIdx]?.trim() || null) : null,
+          video_url: vidIdx >= 0 ? (cols[vidIdx]?.trim() || null) : null,
+          website_url: webIdx >= 0 ? (cols[webIdx]?.trim() || null) : null,
+          created_by: user?.id,
+        }));
+
+      if (docs.length === 0) {
+        toast({ title: 'Error', description: 'No valid rows found in CSV', variant: 'destructive' });
+        setIsQuestionCsvUploading(false);
+        return;
+      }
+
+      let inserted = 0;
+      for (let i = 0; i < docs.length; i += 100) {
+        const chunk = docs.slice(i, i + 100);
+        const { error } = await supabase.from('questions').insert(chunk);
+        if (error) {
+          toast({ title: 'Error', description: `Failed at row ${i + 1}: ${error.message}`, variant: 'destructive' });
+          break;
+        }
+        inserted += chunk.length;
+      }
+      if (inserted > 0) {
+        toast({ title: `${inserted} question${inserted !== 1 ? 's' : ''} imported successfully` });
+        loadQuestions();
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to parse CSV file', variant: 'destructive' });
+    }
+    setIsQuestionCsvUploading(false);
+    if (questionCsvFileInputRef.current) questionCsvFileInputRef.current.value = '';
+  };
+
+  // ====== CSV Import for Timetable ======
+  const handleTimetableCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsTimetableCsvUploading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 2) {
+        toast({ title: 'Error', description: 'CSV must have header + data rows', variant: 'destructive' });
+        setIsTimetableCsvUploading(false);
+        return;
+      }
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+      const subjectIdx = header.findIndex(h => h === 'subject_name' || h === 'subject');
+      const codeIdx = header.findIndex(h => h === 'subject_code' || h === 'code');
+      const deptIdx = header.findIndex(h => h === 'department' || h === 'dept');
+      const yearIdx = header.findIndex(h => h === 'year');
+      const semIdx = header.findIndex(h => h === 'semester' || h === 'sem');
+      const intIdx = header.findIndex(h => h === 'internal_number' || h === 'internal');
+      const dateIdx = header.findIndex(h => h === 'exam_date' || h === 'date');
+      const timeIdx = header.findIndex(h => h === 'exam_time' || h === 'time');
+      const durIdx = header.findIndex(h => h === 'exam_duration' || h === 'duration');
+      const syllIdx = header.findIndex(h => h === 'syllabus_coverage' || h === 'syllabus');
+      const typeIdx = header.findIndex(h => h === 'exam_type' || h === 'type');
+      const marksIdx = header.findIndex(h => h === 'max_marks' || h === 'marks');
+      const roomIdx = header.findIndex(h => h === 'room_number' || h === 'room');
+      const facIdx = header.findIndex(h => h === 'faculty_name' || h === 'faculty');
+      const notesIdx = header.findIndex(h => h === 'notes');
+
+      if (subjectIdx === -1 || deptIdx === -1) {
+        toast({ title: 'Error', description: 'CSV must have "subject_name" and "department" columns', variant: 'destructive' });
+        setIsTimetableCsvUploading(false);
+        return;
+      }
+
+      const rows = lines.slice(1).map(parseCsvRowGeneric);
+      const entries = rows
+        .filter(cols => cols[subjectIdx]?.trim() && cols[deptIdx]?.trim())
+        .map(cols => ({
+          subject_name: cols[subjectIdx].trim(),
+          subject_code: codeIdx >= 0 ? (cols[codeIdx]?.trim() || null) : null,
+          department: cols[deptIdx].trim(),
+          year: yearIdx >= 0 ? (cols[yearIdx]?.trim() || null) : null,
+          semester: semIdx >= 0 ? (cols[semIdx]?.trim() || null) : null,
+          internal_number: intIdx >= 0 ? (cols[intIdx]?.trim() || '1st Internal') : '1st Internal',
+          exam_date: dateIdx >= 0 ? (cols[dateIdx]?.trim() || null) : null,
+          exam_time: timeIdx >= 0 ? (cols[timeIdx]?.trim() || null) : null,
+          exam_duration: durIdx >= 0 ? (cols[durIdx]?.trim() || null) : null,
+          syllabus_coverage: syllIdx >= 0 ? (cols[syllIdx]?.trim() || null) : null,
+          exam_type: typeIdx >= 0 ? (cols[typeIdx]?.trim() || 'Written') : 'Written',
+          max_marks: marksIdx >= 0 && cols[marksIdx]?.trim() ? parseFloat(cols[marksIdx].trim()) : null,
+          room_number: roomIdx >= 0 ? (cols[roomIdx]?.trim() || null) : null,
+          faculty_name: facIdx >= 0 ? (cols[facIdx]?.trim() || null) : null,
+          notes: notesIdx >= 0 ? (cols[notesIdx]?.trim() || null) : null,
+        }));
+
+      if (entries.length === 0) {
+        toast({ title: 'Error', description: 'No valid rows found in CSV', variant: 'destructive' });
+        setIsTimetableCsvUploading(false);
+        return;
+      }
+
+      let inserted = 0;
+      for (let i = 0; i < entries.length; i += 100) {
+        const chunk = entries.slice(i, i + 100);
+        const { error } = await supabase.from('internal_timetable').insert(chunk);
+        if (error) {
+          toast({ title: 'Error', description: `Failed at row ${i + 1}: ${error.message}`, variant: 'destructive' });
+          break;
+        }
+        inserted += chunk.length;
+      }
+      if (inserted > 0) {
+        toast({ title: `${inserted} timetable entr${inserted !== 1 ? 'ies' : 'y'} imported successfully` });
+        loadTimetable();
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to parse CSV file', variant: 'destructive' });
+    }
+    setIsTimetableCsvUploading(false);
+    if (timetableCsvFileInputRef.current) timetableCsvFileInputRef.current.value = '';
+
   if (authLoading || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
