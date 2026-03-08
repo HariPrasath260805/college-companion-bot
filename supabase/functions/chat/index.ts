@@ -490,7 +490,15 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
   // Filter by requested internal number if specified
   let filtered = scored;
   if (requestedInternal) {
-    filtered = scored.filter(s => normalize(s.entry.internal_number) === normalize(requestedInternal));
+    // Extract the numeric part from requestedInternal (e.g. "2nd Internal" -> "2")
+    const requestedNum = requestedInternal.replace(/\D+/g, '');
+    filtered = scored.filter(s => {
+      const entryInternal = normalize(s.entry.internal_number);
+      const entryNum = s.entry.internal_number.replace(/\D+/g, '');
+      // Match exact normalized string OR just the numeric part
+      return entryInternal === normalize(requestedInternal) || 
+             (requestedNum && entryNum === requestedNum);
+    });
     if (filtered.length === 0) return null;
   }
 
@@ -523,7 +531,11 @@ function formatTimetableCard(entry: any): string {
   ];
   if (entry.year) lines.push(`📅 Year: ${entry.year}`);
   if (entry.semester) lines.push(`📌 Semester: ${entry.semester}`);
-  lines.push(`📝 ${entry.internal_number}`);
+  // Display internal number in a readable format
+  const internalDisplay = /^\d+$/.test(entry.internal_number) 
+    ? `${entry.internal_number}${entry.internal_number === '1' ? 'st' : entry.internal_number === '2' ? 'nd' : entry.internal_number === '3' ? 'rd' : 'th'} Internal`
+    : entry.internal_number;
+  lines.push(`📝 ${internalDisplay}`);
   if (entry.exam_date) lines.push(`📆 Date: ${new Date(entry.exam_date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`);
   if (entry.exam_time) lines.push(`🕐 Time: ${entry.exam_time}`);
   if (entry.exam_duration) lines.push(`⏱️ Duration: ${entry.exam_duration}`);
