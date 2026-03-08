@@ -724,6 +724,7 @@ const AdminDashboard = () => {
     }
     setIsTimetableCsvUploading(false);
     if (timetableCsvFileInputRef.current) timetableCsvFileInputRef.current.value = '';
+  };
 
   if (authLoading || !isAdmin) {
     return (
