@@ -86,8 +86,6 @@ const Index = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
-          
           {user ? (
             <>
               {/* Profile Avatar Link */}

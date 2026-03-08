@@ -116,7 +116,7 @@ const Auth = () => {
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Home</span>
         </Link>
-        <ThemeToggle />
+        
       </div>
 
       {/* Auth Card */}

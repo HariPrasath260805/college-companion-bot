@@ -85,7 +85,7 @@ const AdminLogin = () => {
           <ArrowLeft className="w-5 h-5" />
           <span>Back to Chat</span>
         </Link>
-        <ThemeToggle />
+        
       </div>
 
       {/* Admin Login Card */}

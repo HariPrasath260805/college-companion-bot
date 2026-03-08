@@ -212,7 +212,7 @@ export function ChatSidebar({
               </span>
             </Link>
             <div className="flex items-center gap-1">
-              <ThemeToggle />
+              
               {isAdmin && (
                 <Link to="/admin">
                   <Button variant="ghost" size="icon" className="h-8 w-8">

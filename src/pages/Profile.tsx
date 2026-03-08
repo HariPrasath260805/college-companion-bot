@@ -276,7 +276,7 @@ const Profile = () => {
           </Link>
           <h1 className="font-display text-xl font-bold">Profile</h1>
         </div>
-        <ThemeToggle />
+        
       </header>
 
       {/* Profile Content */}
