@@ -121,6 +121,13 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   if (timetable && timetable.length > 0) {
     const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
     if (ttMatch) {
+      if (ttMatch._multiple) {
+        return {
+          type: 'timetable',
+          source: 'database',
+          message: ttMatch._entries.map((e: any) => formatTimetableCard(e)).join('\n\n'),
+        };
+      }
       return {
         type: 'timetable',
         source: 'database',
