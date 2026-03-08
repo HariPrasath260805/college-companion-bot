@@ -104,7 +104,7 @@ const AdminDashboard = () => {
   const [editingDoc, setEditingDoc] = useState<CollegeDocument | null>(null);
   const [isDocLoading, setIsDocLoading] = useState(true);
   const [docName, setDocName] = useState('');
-  const [docDepartment, setDocDepartment] = useState('CSE');
+  const [docDepartment, setDocDepartment] = useState(DEPARTMENTS[0]);
   const [docYear, setDocYear] = useState('');
   const [docRegno, setDocRegno] = useState('');
   const [isCsvUploading, setIsCsvUploading] = useState(false);
