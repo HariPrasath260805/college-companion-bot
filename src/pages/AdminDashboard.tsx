@@ -107,6 +107,8 @@ const AdminDashboard = () => {
   const [docDepartment, setDocDepartment] = useState('CSE');
   const [docYear, setDocYear] = useState('');
   const [docRegno, setDocRegno] = useState('');
+  const [isCsvUploading, setIsCsvUploading] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   // Timetable form state
   const [ttSubjectName, setTtSubjectName] = useState('');
