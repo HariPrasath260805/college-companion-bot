@@ -976,6 +976,11 @@ const AdminDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <input type="file" accept=".csv" ref={timetableCsvFileInputRef} onChange={handleTimetableCsvUpload} className="hidden" />
+              <Button variant="outline" onClick={() => timetableCsvFileInputRef.current?.click()} className="gap-2" disabled={isTimetableCsvUploading}>
+                {isTimetableCsvUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {isTimetableCsvUploading ? 'Importing...' : 'Import CSV'}
+              </Button>
               <Button onClick={openAddTimetable} className="gap-2 gradient-bg text-primary-foreground">
                 <Plus className="w-4 h-4" /> Add Exam
               </Button>
