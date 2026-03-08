@@ -888,6 +888,11 @@ const AdminDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <input type="file" accept=".csv" ref={questionCsvFileInputRef} onChange={handleQuestionCsvUpload} className="hidden" />
+              <Button variant="outline" onClick={() => questionCsvFileInputRef.current?.click()} className="gap-2" disabled={isQuestionCsvUploading}>
+                {isQuestionCsvUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {isQuestionCsvUploading ? 'Importing...' : 'Import CSV'}
+              </Button>
               <Button onClick={openAddDialog} className="gap-2 gradient-bg text-primary-foreground">
                 <Plus className="w-4 h-4" /> Add Question
               </Button>
