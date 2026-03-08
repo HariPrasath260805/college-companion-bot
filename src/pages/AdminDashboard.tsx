@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Plus, Pencil, Trash2, Search, Shield, MessageSquare,
-  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText
+  HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText, Upload
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
