@@ -512,7 +512,7 @@ const AdminDashboard = () => {
       };
 
       const rows = lines.slice(1).map(parseCsvRow);
-      const docs = rows
+      const docs: any[] = rows
         .filter(cols => cols[regnoIdx] && cols[deptIdx])
         .map(cols => {
           const regnoValue = (cols[regnoIdx] || '').trim();
