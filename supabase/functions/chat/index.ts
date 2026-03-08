@@ -136,12 +136,36 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 5. Search college_documents by Regno ONLY (not by name)
-  // Keep regno as string to avoid JS number precision loss for long IDs
-  const regnoPattern = /\b(\d+)\b/;
-  const regnoMatch = userMessage.match(regnoPattern);
-  if (regnoMatch) {
-    const regnoValueRaw = regnoMatch[1];
+  // 5. Search college_documents by Regno ONLY when explicit Reg No intent exists
+  // Prevent false positives like "explain operating system for 2 page"
+  const regnoIntentPattern = /\b(?:regno|reg\s*(?:no\.?|number)|registration\s*(?:no\.?|number)|register\s*no\.?)\b/i;
+  const explicitRegnoPattern = /\b(?:regno|reg\s*(?:no\.?|number)|registration\s*(?:no\.?|number)|register\s*no\.?)\s*[:#-]?\s*(\d{10})\b/i;
+  const standaloneRegnoPattern = /^\s*(\d{10})\s*$/;
+
+  const hasRegnoIntent = regnoIntentPattern.test(userMessage);
+  const explicitRegnoMatch = userMessage.match(explicitRegnoPattern);
+  const standaloneRegnoMatch = userMessage.match(standaloneRegnoPattern);
+
+  const regnoValueRaw = explicitRegnoMatch?.[1] || standaloneRegnoMatch?.[1] || null;
+
+  if (hasRegnoIntent && !regnoValueRaw) {
+    const anyDigits = userMessage.match(/\b\d+\b/);
+    if (anyDigits) {
+      return {
+        type: 'document_invalid_regno',
+        source: 'database',
+        message: 'Registration Number must be exactly 10 digits. Please enter a valid 10-digit Reg No.',
+      };
+    }
+
+    return {
+      type: 'document_invalid_regno',
+      source: 'database',
+      message: 'Please provide a 10-digit Registration Number (Reg No). Example: "reg no 1234567890".',
+    };
+  }
+
+  if (regnoValueRaw) {
     const { data: docs } = await supabaseClient
       .from('college_documents')
       .select('*')
@@ -174,7 +198,7 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   // If user seems to be asking about a person by name, redirect to use Regno/UMIS
   const nameQueryIndicators = ['details', 'info', 'information', 'who', 'student', 'about'];
   const hasNameQuery = inputTerms.some(t => nameQueryIndicators.includes(t));
-  const looksLikePersonName = !umisMatch && !regnoMatch && inputTerms.length <= 4 && 
+  const looksLikePersonName = !umisMatch && !regnoValueRaw && inputTerms.length <= 4 && 
     !inputTerms.some(t => actionWords.includes(t)) && 
     !inputTerms.some(t => examKeywords.includes(t));
   
