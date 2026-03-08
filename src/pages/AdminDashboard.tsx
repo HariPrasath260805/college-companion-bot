@@ -585,6 +585,7 @@ const AdminDashboard = () => {
               <p className="text-xs text-muted-foreground">Manage Q&A Database & Timetable</p>
             </div>
           </div>
+        </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
