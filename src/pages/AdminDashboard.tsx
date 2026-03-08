@@ -104,7 +104,7 @@ const AdminDashboard = () => {
   const [editingDoc, setEditingDoc] = useState<CollegeDocument | null>(null);
   const [isDocLoading, setIsDocLoading] = useState(true);
   const [docName, setDocName] = useState('');
-  const [docDepartment, setDocDepartment] = useState('CSE');
+  const [docDepartment, setDocDepartment] = useState(DEPARTMENTS[0]);
   const [docYear, setDocYear] = useState('');
   const [docRegno, setDocRegno] = useState('');
   const [isCsvUploading, setIsCsvUploading] = useState(false);
@@ -416,16 +416,24 @@ const AdminDashboard = () => {
   };
 
   const handleSaveDoc = async () => {
-    if (!docRegno.trim() || !docDepartment.trim()) {
+    const normalizedRegno = docRegno.trim();
+
+    if (!normalizedRegno || !docDepartment.trim()) {
       toast({ title: 'Validation Error', description: 'Regno and Department are required', variant: 'destructive' });
       return;
     }
+
+    if (!/^\d+$/.test(normalizedRegno)) {
+      toast({ title: 'Validation Error', description: 'Regno must contain only digits', variant: 'destructive' });
+      return;
+    }
+
     setIsSaving(true);
     const docData: any = {
       Name: docName.trim() || null,
       Department: docDepartment,
-      Year: docYear ? parseInt(docYear) : null,
-      Regno: parseFloat(docRegno),
+      Year: docYear ? parseInt(docYear, 10) : null,
+      Regno: normalizedRegno,
     };
 
     if (editingDoc) {
@@ -504,15 +512,18 @@ const AdminDashboard = () => {
       };
 
       const rows = lines.slice(1).map(parseCsvRow);
-      const docs = rows
+      const docs: any[] = rows
         .filter(cols => cols[regnoIdx] && cols[deptIdx])
-        .map(cols => ({
-          Name: nameIdx >= 0 ? (cols[nameIdx] || null) : null,
-          Department: cols[deptIdx],
-          Year: yearIdx >= 0 && cols[yearIdx] ? parseInt(cols[yearIdx]) : null,
-          Regno: parseFloat(cols[regnoIdx]),
-        }))
-        .filter(d => !isNaN(d.Regno));
+        .map(cols => {
+          const regnoValue = (cols[regnoIdx] || '').trim();
+          return {
+            Name: nameIdx >= 0 ? (cols[nameIdx] || null) : null,
+            Department: cols[deptIdx],
+            Year: yearIdx >= 0 && cols[yearIdx] ? parseInt(cols[yearIdx], 10) : null,
+            Regno: regnoValue,
+          };
+        })
+        .filter(d => /^\d+$/.test(d.Regno));
 
       if (docs.length === 0) {
         toast({ title: 'Error', description: 'No valid rows found in CSV', variant: 'destructive' });
