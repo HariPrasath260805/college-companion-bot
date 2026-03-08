@@ -139,8 +139,10 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   // 5. Search college_documents by Regno ONLY when explicit Reg No intent exists
   // Prevent false positives like "explain operating system for 2 page"
   const regnoIntentPattern = /\b(?:regno|reg\s*(?:no\.?|number)|registration\s*(?:no\.?|number)|register\s*no\.?)\b/i;
-  const explicitRegnoPattern = /\b(?:regno|reg\s*(?:no\.?|number)|registration\s*(?:no\.?|number)|register\s*no\.?)\s*[:#-]?\s*(\d{10})\b/i;
-  const standaloneRegnoPattern = /^\s*(\d{10})\s*$/;
+  // With explicit intent, accept any number after the keyword
+  const explicitRegnoPattern = /\b(?:regno|reg\s*(?:no\.?|number)|registration\s*(?:no\.?|number)|register\s*no\.?)\s*[:#-]?\s*(\d+)\b/i;
+  // Standalone long number (7+ digits) treated as reg no
+  const standaloneRegnoPattern = /^\s*(\d{7,})\s*$/;
 
   const hasRegnoIntent = regnoIntentPattern.test(userMessage);
   const explicitRegnoMatch = userMessage.match(explicitRegnoPattern);
@@ -149,19 +151,10 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
   const regnoValueRaw = explicitRegnoMatch?.[1] || standaloneRegnoMatch?.[1] || null;
 
   if (hasRegnoIntent && !regnoValueRaw) {
-    const anyDigits = userMessage.match(/\b\d+\b/);
-    if (anyDigits) {
-      return {
-        type: 'document_invalid_regno',
-        source: 'database',
-        message: 'Registration Number must be exactly 10 digits. Please enter a valid 10-digit Reg No.',
-      };
-    }
-
     return {
       type: 'document_invalid_regno',
       source: 'database',
-      message: 'Please provide a 10-digit Registration Number (Reg No). Example: "reg no 1234567890".',
+      message: 'Please provide your Registration Number. Example: "reg no 2308206180211101".',
     };
   }
 
