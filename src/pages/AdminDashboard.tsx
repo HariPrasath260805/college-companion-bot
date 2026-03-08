@@ -402,7 +402,7 @@ const AdminDashboard = () => {
 
   const openAddDoc = () => {
     setEditingDoc(null);
-    setDocName(''); setDocDepartment('CSE'); setDocYear(''); setDocRegno('');
+    setDocName(''); setDocDepartment(DEPARTMENTS[0]); setDocYear(''); setDocRegno('');
     setIsDocDialogOpen(true);
   };
 
@@ -1037,6 +1037,10 @@ const AdminDashboard = () => {
                   {DEPARTMENTS.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
+                  {/* Show current value if not in list (legacy data) */}
+                  {docDepartment && !DEPARTMENTS.includes(docDepartment) && (
+                    <SelectItem key={docDepartment} value={docDepartment}>{docDepartment}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1047,7 +1051,7 @@ const AdminDashboard = () => {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Regno *</label>
-                <Input type="number" value={docRegno} onChange={(e) => setDocRegno(e.target.value)} placeholder="e.g., 12345" />
+                <Input value={docRegno} onChange={(e) => setDocRegno(e.target.value)} placeholder="e.g., 2308206180211101" />
               </div>
             </div>
           </div>
