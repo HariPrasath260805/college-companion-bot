@@ -402,7 +402,7 @@ const AdminDashboard = () => {
 
   const openAddDoc = () => {
     setEditingDoc(null);
-    setDocName(''); setDocDepartment('CSE'); setDocYear(''); setDocRegno('');
+    setDocName(''); setDocDepartment(DEPARTMENTS[0]); setDocYear(''); setDocRegno('');
     setIsDocDialogOpen(true);
   };
 
