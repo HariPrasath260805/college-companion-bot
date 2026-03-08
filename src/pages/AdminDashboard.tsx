@@ -1037,6 +1037,10 @@ const AdminDashboard = () => {
                   {DEPARTMENTS.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
+                  {/* Show current value if not in list (legacy data) */}
+                  {docDepartment && !DEPARTMENTS.includes(docDepartment) && (
+                    <SelectItem key={docDepartment} value={docDepartment}>{docDepartment}</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
