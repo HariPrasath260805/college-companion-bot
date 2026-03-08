@@ -490,7 +490,15 @@ function findTimetableMatch(entries: any[], normalizedInput: string, inputTerms:
   // Filter by requested internal number if specified
   let filtered = scored;
   if (requestedInternal) {
-    filtered = scored.filter(s => normalize(s.entry.internal_number) === normalize(requestedInternal));
+    // Extract the numeric part from requestedInternal (e.g. "2nd Internal" -> "2")
+    const requestedNum = requestedInternal.replace(/\D+/g, '');
+    filtered = scored.filter(s => {
+      const entryInternal = normalize(s.entry.internal_number);
+      const entryNum = s.entry.internal_number.replace(/\D+/g, '');
+      // Match exact normalized string OR just the numeric part
+      return entryInternal === normalize(requestedInternal) || 
+             (requestedNum && entryNum === requestedNum);
+    });
     if (filtered.length === 0) return null;
   }
 
