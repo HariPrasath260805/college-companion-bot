@@ -92,7 +92,27 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
     }
   }
 
-  // 3. Search questions table (existing knowledge base)
+  // 3. Search internal_timetable BEFORE questions (so subject names match timetable first)
+  const { data: timetable } = await supabaseClient.from('internal_timetable').select('*');
+  if (timetable && timetable.length > 0) {
+    const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
+    if (ttMatch) {
+      if (ttMatch._multiple) {
+        return {
+          type: 'timetable',
+          source: 'database',
+          message: ttMatch._entries.map((e: any) => formatTimetableCard(e)).join('\n\n'),
+        };
+      }
+      return {
+        type: 'timetable',
+        source: 'database',
+        message: formatTimetableCard(ttMatch),
+      };
+    }
+  }
+
+  // 4. Search questions table (existing knowledge base)
   const { data: questions } = await supabaseClient.from('questions').select('*');
   if (questions && questions.length > 0) {
     const qMatch = findBestQuestionMatch(questions, normalizedInput, inputTerms);
@@ -112,26 +132,6 @@ async function searchDatabase(supabaseClient: any, userMessage: string) {
         image_url: qMatch.match.image_url || null,
         video_url: qMatch.match.video_url || null,
         website_url: qMatch.match.website_url || null,
-      };
-    }
-  }
-
-  // 4. Search internal_timetable
-  const { data: timetable } = await supabaseClient.from('internal_timetable').select('*');
-  if (timetable && timetable.length > 0) {
-    const ttMatch = findTimetableMatch(timetable, normalizedInput, inputTerms);
-    if (ttMatch) {
-      if (ttMatch._multiple) {
-        return {
-          type: 'timetable',
-          source: 'database',
-          message: ttMatch._entries.map((e: any) => formatTimetableCard(e)).join('\n\n'),
-        };
-      }
-      return {
-        type: 'timetable',
-        source: 'database',
-        message: formatTimetableCard(ttMatch),
       };
     }
   }
