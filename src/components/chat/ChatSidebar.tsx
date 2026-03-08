@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ThemeToggle } from '@/components/ThemeToggle';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -212,7 +212,7 @@ export function ChatSidebar({
               </span>
             </Link>
             <div className="flex items-center gap-1">
-              <ThemeToggle />
+              
               {isAdmin && (
                 <Link to="/admin">
                   <Button variant="ghost" size="icon" className="h-8 w-8">

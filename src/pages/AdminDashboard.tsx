@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ThemeToggle } from '@/components/ThemeToggle';
+
 import { 
   Plus, Pencil, Trash2, Search, Shield, MessageSquare,
   HelpCircle, Image, Loader2, Save, X, Video, Link2, Users, CalendarDays, FileText, Upload
@@ -584,9 +584,6 @@ const AdminDashboard = () => {
               </h1>
               <p className="text-xs text-muted-foreground">Manage Q&A Database & Timetable</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
           </div>
         </div>
       </header>
