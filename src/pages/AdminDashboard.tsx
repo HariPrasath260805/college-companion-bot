@@ -64,7 +64,7 @@ const CATEGORIES = [
   'facilities', 'placement', 'hostel', 'events', 'other'
 ];
 
-const DEPARTMENTS = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML', 'MBA', 'MCA', 'Other'];
+const DEPARTMENTS = ['Bsc Computer Science', 'Bsc Physics', 'Bsc Maths', 'Bsc Geology', 'Ba Tamil', 'Ba English', 'B Com', 'Ba Economics', 'Ba History', 'Other'];
 const INTERNAL_NUMBERS = ['1st Internal', '2nd Internal', '3rd Internal', 'Model Exam', 'Retest'];
 
 const AdminDashboard = () => {
