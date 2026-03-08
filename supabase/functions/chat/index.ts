@@ -531,7 +531,11 @@ function formatTimetableCard(entry: any): string {
   ];
   if (entry.year) lines.push(`📅 Year: ${entry.year}`);
   if (entry.semester) lines.push(`📌 Semester: ${entry.semester}`);
-  lines.push(`📝 ${entry.internal_number}`);
+  // Display internal number in a readable format
+  const internalDisplay = /^\d+$/.test(entry.internal_number) 
+    ? `${entry.internal_number}${entry.internal_number === '1' ? 'st' : entry.internal_number === '2' ? 'nd' : entry.internal_number === '3' ? 'rd' : 'th'} Internal`
+    : entry.internal_number;
+  lines.push(`📝 ${internalDisplay}`);
   if (entry.exam_date) lines.push(`📆 Date: ${new Date(entry.exam_date).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`);
   if (entry.exam_time) lines.push(`🕐 Time: ${entry.exam_time}`);
   if (entry.exam_duration) lines.push(`⏱️ Duration: ${entry.exam_duration}`);
