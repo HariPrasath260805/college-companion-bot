@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { AnimatedBackground } from '@/components/AnimatedBackground';
+import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { GraduationCap, Mail, Lock, User, ArrowLeft, Loader2 } from 'lucide-react';
