@@ -10,7 +10,7 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Camera, Save, Loader2, User, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, Camera, Save, Loader2, User, Mail, Shield, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Profile {
