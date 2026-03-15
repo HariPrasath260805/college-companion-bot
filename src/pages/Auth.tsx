@@ -172,10 +172,6 @@ const Auth = () => {
                 )}
               </div>
 
-              <div className="flex justify-end">
-                <ForgotPasswordDialog />
-              </div>
-
               <Button type="submit" className="w-full gradient-bg text-primary-foreground" disabled={isLoading}>
                 {isLoading ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...</>
