@@ -10,7 +10,7 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Camera, Save, Loader2, User, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, Camera, Save, Loader2, User, Mail, Shield, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Profile {
@@ -33,6 +33,10 @@ const Profile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // Redirect if not logged in
   useEffect(() => {
@@ -350,6 +354,92 @@ const Profile = () => {
                 <p className="text-xs text-muted-foreground">
                   Email cannot be changed
                 </p>
+              </div>
+
+              {/* Change Password Section */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  Change Password
+                </Label>
+                {!isChangingPassword ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setIsChangingPassword(true)}
+                  >
+                    Change Password
+                  </Button>
+                ) : (
+                  <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="space-y-1">
+                      <Label htmlFor="newPassword" className="text-xs">New Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="bg-background/50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="confirmNewPwd" className="text-xs">Confirm New Password</Label>
+                      <Input
+                        id="confirmNewPwd"
+                        type="password"
+                        placeholder="••••••••"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="bg-background/50"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsChangingPassword(false);
+                          setNewPassword('');
+                          setConfirmNewPassword('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gradient-bg text-primary-foreground"
+                        disabled={isSaving}
+                        onClick={async () => {
+                          if (newPassword.length < 6) {
+                            toast({ title: 'Error', description: 'Password must be at least 6 characters.', variant: 'destructive' });
+                            return;
+                          }
+                          if (newPassword !== confirmNewPassword) {
+                            toast({ title: 'Error', description: "Passwords don't match.", variant: 'destructive' });
+                            return;
+                          }
+                          setIsSaving(true);
+                          const { error } = await supabase.auth.updateUser({ password: newPassword });
+                          setIsSaving(false);
+                          if (error) {
+                            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                          } else {
+                            toast({ title: 'Password Updated', description: 'Your password has been changed successfully.' });
+                            setIsChangingPassword(false);
+                            setNewPassword('');
+                            setConfirmNewPassword('');
+                          }
+                        }}
+                      >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Password'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Role Badge */}
