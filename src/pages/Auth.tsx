@@ -100,9 +100,9 @@ const Auth = () => {
     } else {
       toast({
         title: 'Account Created!',
-        description: 'Please check your email to confirm your account.',
+        description: 'You have successfully registered.',
       });
-      setIsLogin(true);
+      navigate('/chat');
     }
   };
 
